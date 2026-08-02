@@ -1,6 +1,6 @@
 {
   "name": "neatmd",
-  "version": "1.0.0",
+  "version": "0.1.0",
   "description": "A fast Markdown formatter for clean and consistent documentation.",
   "type": "module",
   "main": "./src/index.js",

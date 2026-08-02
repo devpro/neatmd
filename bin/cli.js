@@ -5,20 +5,30 @@ import path from 'node:path';
 import { parseArgs } from 'node:util';
 import { loadConfig, processFile, processDirectory } from '../src/index.js';
 
+const pkgPath = new URL('../package.json', import.meta.url);
+const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf-8'));
+
 const optionsSchema = {
   output: { type: 'string', short: 'o' },
   check: { type: 'boolean', short: 'c' },
+  version: { type: 'boolean', short: 'V' },
   help: { type: 'boolean', short: 'h' },
 };
 
 try {
   const { values, positionals } = parseArgs({ options: optionsSchema, allowPositionals: true });
 
+  if (values.version) {
+    console.log(`neatmd v${pkg.version}`);
+    process.exit(0);
+  }
+
   if (values.help || positionals.length === 0) {
     console.log('Usage: neatmd <file|directory> [options]');
     console.log('\nOptions:');
     console.log('  -c, --check          Check if files are formatted without writing');
     console.log('  -o, --output <file>  Specify output file (single file mode only)');
+    console.log('  -V, --version        Show version number');
     console.log('  -h, --help           Show help menu');
     process.exit(0);
   }
