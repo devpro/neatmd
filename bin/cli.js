@@ -45,9 +45,16 @@ try {
     process.exit(1);
   }
 
-  const config = loadConfig();
-  const options = { ...config, check: values.check, output: values.output };
   const stat = fs.statSync(targetPath);
+
+  const targetDir = stat.isDirectory() ? targetPath : path.dirname(targetPath);
+  const configPath = [
+    path.join(targetDir, '.editorconfig'),
+    path.join(process.cwd(), '.editorconfig')
+  ].find(fs.existsSync);
+
+  const config = loadConfig(configPath);
+  const options = { ...config, check: values.check, output: values.output };
 
   const modifiedCount = stat.isDirectory()
     ? processDirectory(targetPath, options)

@@ -1,11 +1,9 @@
 import fs from 'node:fs';
-import path from 'node:path';
 
-export function loadConfig(cwd = process.cwd()) {
-  const configPath = path.join(cwd, '.editorconfig');
+export function loadConfig(configPath) {
   const defaultConfig = { maxLineLength: 240 };
 
-  if (!fs.existsSync(configPath)) {
+  if (!configPath || !fs.existsSync(configPath)) {
     return defaultConfig;
   }
 
