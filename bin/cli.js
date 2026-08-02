@@ -7,6 +7,7 @@ import { loadConfig, processFile, processDirectory } from '../src/index.js';
 
 const optionsSchema = {
   output: { type: 'string', short: 'o' },
+  check: { type: 'boolean', short: 'c' },
   help: { type: 'boolean', short: 'h' },
 };
 
@@ -14,9 +15,17 @@ try {
   const { values, positionals } = parseArgs({ options: optionsSchema, allowPositionals: true });
 
   if (values.help || positionals.length === 0) {
-    console.log('Usage: neatmd <file|directory> [-o <output-file>]');
-    console.log('\nOptions:\n  -o, --output <file>  Specify output file\n  -h, --help           Show help');
+    console.log('Usage: neatmd <file|directory> [options]');
+    console.log('\nOptions:');
+    console.log('  -c, --check          Check if files are formatted without writing');
+    console.log('  -o, --output <file>  Specify output file (single file mode only)');
+    console.log('  -h, --help           Show help menu');
     process.exit(0);
+  }
+
+  if (values.check && values.output) {
+    console.error('✖ Error: Cannot use --check and --output together.');
+    process.exit(1);
   }
 
   const targetPath = path.resolve(process.cwd(), positionals[0]);
@@ -27,22 +36,26 @@ try {
   }
 
   const config = loadConfig();
-
+  const options = { ...config, check: values.check, output: values.output };
   const stat = fs.statSync(targetPath);
 
-  if (stat.isDirectory()) {
-    if (values.output) {
-      console.error('✖ Error: Cannot specify -o / --output when formatting a directory.');
-      process.exit(1);
-    }
+  const modifiedCount = stat.isDirectory()
+    ? processDirectory(targetPath, options)
+    : (processFile(targetPath, options) ? 1 : 0);
 
-    const count = processDirectory(targetPath, config);
-    console.log(count > 0 ? `\nDone! Formatted ${count} file(s).` : 'All Markdown files are already neat!');
+  if (values.check) {
+    if (modifiedCount > 0) {
+      console.error(`\n✖ Check failed: ${modifiedCount} file(s) need formatting.`);
+      process.exit(1);
+    } else {
+      console.log('✔ All Markdown files are properly formatted!');
+      process.exit(0);
+    }
   } else {
-    const options = { ...config, output: values.output };
-    const modified = processFile(targetPath, options);
-    if (!modified) {
-      console.log(`File is already neat: ${positionals[0]}`);
+    if (modifiedCount === 0) {
+      console.log('All Markdown files are already neat!');
+    } else if (stat.isDirectory()) {
+      console.log(`\nDone! Formatted ${modifiedCount} file(s).`);
     }
   }
 } catch (error) {

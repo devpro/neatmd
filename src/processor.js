@@ -21,6 +21,11 @@ export function processFile(filePath, options = {}) {
     return false;
   }
 
+  if (options.check) {
+    console.log(`✖ Needs formatting: ${filePath}`);
+    return true;
+  }
+
   const outputPath = options.output || filePath;
   fs.writeFileSync(outputPath, formatted, 'utf-8');
   console.log(`✔ Formatted: ${filePath}`);
