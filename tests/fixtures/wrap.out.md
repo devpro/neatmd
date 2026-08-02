@@ -1,5 +1,8 @@
 # Example
 
+[![FOSSA Status](https://app.fossa.com/api/projects/custom%2B60068%2Fgithub.com%2Fdevpro%2Fkeeptrack.svg?type=shield&issueType=license)](https://app.fossa.com/projects/custom%2B60068%2Fgithub.com%2Fdevpro%2Fkeeptrack?ref=badge_shield&issueType=license)
+[![FOSSA Status](https://app.fossa.com/api/projects/custom%2B60068%2Fgithub.com%2Fdevpro%2Fkeeptrack.svg?type=shield&issueType=security)](https://app.fossa.com/projects/custom%2B60068%2Fgithub.com%2Fdevpro%2Fkeeptrack?ref=badge_shield&issueType=security)
+
 `CommonDtoMappings.ToRequiredString` (`WebApi/Mappers/`, a `[UserMapping]` static method attached to the affected DTO mappers via `[UseStaticMapper(typeof(CommonDtoMappings))]`) reproduces AutoMapper's old `?? string.Empty` behavior.
 It applies for every such string member across every mapper that needs it.
 This is for exact behavior parity.

@@ -45,8 +45,11 @@ export function formatMarkdown(content, options = {}) {
       continue;
     }
 
-    // ignores empty lines and headings
-    if (line.trim() === '' || line.startsWith('#')) {
+    // detects lines that are strictly badges, images, or links (e.g., [![Alt](url)](url) or [Text](url))
+    const isLinkOrImage = /^\s*!?\[.*\]\(.*\)\s*$/.test(line);
+
+    // ignores empty lines, headings, and link/image lines
+    if (line.trim() === '' || line.startsWith('#') || isLinkOrImage) {
       output.push(line);
       i++;
       continue;
