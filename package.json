@@ -1,0 +1,36 @@
+{
+  "name": "neatmd",
+  "version": "0.1.1",
+  "description": "A fast Markdown formatter for clean and consistent documentation.",
+  "type": "module",
+  "main": "./src/index.js",
+  "bin": {
+    "neatmd": "./bin/cli.js"
+  },
+  "scripts": {
+    "start": "node ./bin/cli.js",
+    "test": "node --test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/devpro/neatmd.git"
+  },
+  "keywords": [
+    "markdown",
+    "formatter",
+    "cli",
+    "developer-tools"
+  ],
+  "files": [
+    "bin",
+    "src",
+    "README.md",
+    "LICENSE"
+  ],
+  "author": "Bertrand THOMAS",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/devpro/neatmd/issues"
+  },
+  "homepage": "https://github.com/devpro/neatmd#readme"
+}

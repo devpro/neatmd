@@ -1,0 +1,40 @@
+﻿name: CI
+# title: Continuous Integration
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch: {}
+
+concurrency:
+  group: "${{ github.ref }}-ci"
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  content-validate:
+    name: Markup
+    uses: devpro/github-workflow-parts/.github/workflows/reusable-markup-lint.yml@f9d8c00db1ed723e39cfff6c4c7addc77a23c54d
+
+  test:
+    name: "Test"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@v7
+      - name: Install Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+      - name: Run tests
+        run: npm test
+      - name: Run neatmd on its source
+        run: |
+          rm -rf tests/fixtures/*.in.md
+          node bin/cli.js --check .
