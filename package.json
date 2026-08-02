@@ -1,6 +1,6 @@
 {
   "name": "neatmd",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "A fast Markdown formatter for clean and consistent documentation.",
   "type": "module",
   "main": "./src/index.js",
@@ -20,6 +20,12 @@
     "formatter",
     "cli",
     "developer-tools"
+  ],
+  "files": [
+    "bin",
+    "src",
+    "README.md",
+    "LICENSE"
   ],
   "author": "Bertrand THOMAS",
   "license": "MIT",
