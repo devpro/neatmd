@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { format } from '../src/index.js';
+import { formatMarkdown } from '../src/index.js';
 
 test('formats sentence line-breaks under 240 char max line length', () => {
   const input = readFileSync(
@@ -19,7 +19,7 @@ test('formats sentence line-breaks under 240 char max line length', () => {
     insertFinalNewline: true
   };
 
-  const result = format(input, options.maxLineLength);
+  const result = formatMarkdown(input, options.maxLineLength);
 
   assert.equal(result, expected);
 });

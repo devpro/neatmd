@@ -1,5 +1,3 @@
-import { formatMarkdown } from './formatter.js';
-
-export function format(content) {
-  return formatMarkdown(content, 240);
-}
+export { loadConfig } from './config.js';
+export { formatMarkdown } from './formatter.js';
+export { processFile, processDirectory } from './processor.js';

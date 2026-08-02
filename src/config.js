@@ -1,23 +1,27 @@
-function getEditorConfigMaxLineLength() {
-    const configPath = path.join(process.cwd(), '.editorconfig');
-    if (!fs.existsSync(configPath)) {
-        console.warn('No .editorconfig found, defaulting to 240');
-        return 240;
-    }
+import fs from 'node:fs';
+import path from 'node:path';
 
-    const content = fs.readFileSync(configPath, 'utf8');
-    let inMdSection = false;
-    let maxLength = 240;
+export function loadConfig(cwd = process.cwd()) {
+  const configPath = path.join(cwd, '.editorconfig');
+  const defaultConfig = { maxLineLength: 240 };
 
-    for (let line of content.split(/\r?\n/)) {
-        line = line.trim();
-        if (line.startsWith('[')) {
-            // Check if this section applies to Markdown
-            inMdSection = line.includes('*.md') || line === '[*]';
-        } else if (inMdSection && line.startsWith('max_line_length')) {
-            const match = line.match(/max_line_length\s*=\s*(\d+)/);
-            if (match) maxLength = parseInt(match[1], 10);
-        }
+  if (!fs.existsSync(configPath)) {
+    return defaultConfig;
+  }
+
+  const content = fs.readFileSync(configPath, 'utf8');
+  let inMdSection = false;
+  let maxLineLength = defaultConfig.maxLineLength;
+
+  for (let line of content.split(/\r?\n/)) {
+    line = line.trim();
+    if (line.startsWith('[')) {
+      inMdSection = line.includes('*.md') || line === '[*]';
+    } else if (inMdSection && line.startsWith('max_line_length')) {
+      const match = line.match(/max_line_length\s*=\s*(\d+)/);
+      if (match) maxLineLength = parseInt(match[1], 10);
     }
-    return maxLength;
+  }
+
+  return { maxLineLength };
 }
