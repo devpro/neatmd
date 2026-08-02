@@ -1,9 +1,11 @@
 # neatmd
 
-> A fast Markdown formatter for clean and consistent documentation.
-
+[![CI](https://github.com/devpro/neatmd/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/devpro/neatmd/actions/workflows/ci.yml)
+[![PKG](https://github.com/devpro/neatmd/actions/workflows/pkg.yml/badge.svg?branch=main)](https://github.com/devpro/neatmd/actions/workflows/pkg.yml)
 [![npm version](https://img.shields.io/npm/v/neatmd.svg)](https://www.npmjs.com/package/neatmd)
 [![license](https://img.shields.io/npm/l/neatmd.svg)](LICENSE)
+
+> A fast Markdown formatter for clean and consistent documentation.
 
 `neatmd` keeps your Markdown files neat, standardizing headings, list indentation, code blocks, and table alignments effortlessly.
 
