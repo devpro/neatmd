@@ -55,6 +55,15 @@ export function formatMarkdown(content, options = {}) {
       continue;
     }
 
+    // isolates blockquotes, ordered lists (1., 2)), and unordered lists (-, *, +)
+    const prefixMatch = line.match(/^(\s*(?:>\s*)*)((?:[-*+]|\d+[.)])\s+)?/);
+    const bqPart = prefixMatch[1] || '';
+    const listPart = prefixMatch[2] || '';
+
+    const prefix = bqPart + listPart; // E.g., "  1. "
+    const indentPrefix = bqPart + ' '.repeat(listPart.length); // E.g., "     "
+    const textToProcess = line.substring(prefix.length);
+
     // uses hardened semantic line breaks
     // 1. (?<!\b(?:etc|vs|Mr|Mrs|Dr|Prof|Inc|Ltd)\.) -> Ignore common multi-letter abbreviations
     // 2. (?<!\b[a-zA-Z]\.) -> Ignore single letters (handles e.g., i.e., initials)
@@ -62,10 +71,13 @@ export function formatMarkdown(content, options = {}) {
     // 4. \s+ -> Consume the space(s)
     // 5. (?=[A-Z0-9`*_'\[]) -> The next word MUST start with a Capital letter, number, or Markdown formatting
     const sentenceSplitRegex = /(?<!\b(?:etc|vs|Mr|Mrs|Dr|Prof|Inc|Ltd)\.)(?<!\b[a-zA-Z]\.)(?<=[.!?])\s+(?=[A-Z0-9`*_'\[])/;
-    const sentences = line.split(sentenceSplitRegex);
+    const sentences = textToProcess.split(sentenceSplitRegex);
 
-    for (let sentence of sentences) {
-      let remaining = sentence;
+    for (let j = 0; j < sentences.length; j++) {
+      let sentence = sentences[j];
+
+      // gets the real marker on first sentence, subsequent sentences get blank spaces to align
+      let remaining = (j === 0) ? prefix + sentence : indentPrefix + sentence;
 
       while (remaining.length > maxLineLength) {
         let splitPos = -1;
@@ -80,7 +92,8 @@ export function formatMarkdown(content, options = {}) {
           if (pos !== -1) {
             // includes the punctuation in the current line, break before the space
             const splitAt = p === ' - ' ? pos + 2 : pos + 1;
-            if (splitAt > bestPunctPos) {
+            // Prevent splitting inside the markdown structural prefix
+            if (splitAt > prefix.length && splitAt > bestPunctPos) {
               bestPunctPos = splitAt;
             }
           }
@@ -92,18 +105,19 @@ export function formatMarkdown(content, options = {}) {
         } else {
           // B. fallbacks to standard word-wrap (last space before limit)
           const spacePos = substring.lastIndexOf(' ');
-          if (spacePos > 0) {
+          if (spacePos > prefix.length) {
             splitPos = spacePos;
           } else {
             // C. finds the *next* available space, if the word is longer than max length (e.g. long URL)
-            const nextSpace = remaining.indexOf(' ', maxLineLength);
+            // force wraps if a single unbroken word exceeds max limit
+            const nextSpace = remaining.indexOf(' ', Math.max(maxLineLength, prefix.length));
             splitPos = nextSpace !== -1 ? nextSpace : remaining.length;
           }
         }
 
         output.push(remaining.substring(0, splitPos).trimEnd());
 
-        remaining = remaining.substring(splitPos).trimStart();
+        remaining = indentPrefix + remaining.substring(splitPos).trimStart();
       }
 
       if (remaining.length > 0) {

@@ -21,3 +21,20 @@ Project                  | Depends on                                           
 `BlazorApp` | `Common.System`, `WebApi.Contracts`                    | Blazor Server UI. Talks to `WebApi` over HTTP using the shared DTOs; it never references `Domain` or `Infrastructure.MongoDb` directly.
 
 Let's have some fun, with tests. Here it goes!
+
+1. Uno
+   Hello. Hey
+2. Duo
+
+- First item of. Business
+- Second
+
+1. First item of biziness
+
+    Here we go. Some command:
+
+    ```bash
+    ls
+    ```
+
+2. Second
