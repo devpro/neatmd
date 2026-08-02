@@ -45,7 +45,6 @@ neatmd --check .
 
 Flag        | Short | Description                                           | Default
 ------------|-------|-------------------------------------------------------|--------
-`--write`   | `-w`  | Write formatted changes back to files                 | `true`
 `--check`   | `-c`  | Verify formatting and exit with code 1 if unformatted | `false`
 `--verbose` | `-v`  | Output detailed progress logs                         | `false`
 `--version` | `-V`  | Print current version                                 | —
@@ -66,6 +65,6 @@ jobs:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v6
         with:
-          node-version: 20
+          node-version: 22
       - run: npx neatmd --check .
 ```
