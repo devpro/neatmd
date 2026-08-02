@@ -71,7 +71,28 @@ export function formatMarkdown(content, options = {}) {
     // 4. \s+ -> Consume the space(s)
     // 5. (?=[A-Z0-9`*_'\[]) -> The next word MUST start with a Capital letter, number, or Markdown formatting
     const sentenceSplitRegex = /(?<!\b(?:etc|vs|Mr|Mrs|Dr|Prof|Inc|Ltd)\.)(?<!\b[a-zA-Z]\.)(?<=[.!?])\s+(?=[A-Z0-9`*_'\[])/;
-    const sentences = textToProcess.split(sentenceSplitRegex);
+    const rawSentences = textToProcess.split(sentenceSplitRegex);
+
+    // Re-joins any sentence split that occurred inside quotes or inline code
+    const sentences = [];
+    let currentSentence = '';
+    let currentPos = 0;
+
+    for (let k = 0; k < rawSentences.length; k++) {
+      if (k === 0) {
+        currentSentence = rawSentences[k];
+        currentPos += rawSentences[k].length;
+      } else {
+        if (isInsideQuotesOrCode(textToProcess, currentPos)) {
+          currentSentence += ' ' + rawSentences[k];
+        } else {
+          sentences.push(currentSentence);
+          currentSentence = rawSentences[k];
+        }
+        currentPos += 1 + rawSentences[k].length;
+      }
+    }
+    if (currentSentence) sentences.push(currentSentence);
 
     for (let j = 0; j < sentences.length; j++) {
       let sentence = sentences[j];
@@ -88,14 +109,18 @@ export function formatMarkdown(content, options = {}) {
         let bestPunctPos = -1;
 
         for (const p of punctuations) {
-          const pos = substring.lastIndexOf(p);
-          if (pos !== -1) {
-            // includes the punctuation in the current line, break before the space
+          let pos = substring.lastIndexOf(p);
+
+          // ensures we don't break at punctuation that lives inside quotes/code
+          while (pos !== -1) {
             const splitAt = p === ' - ' ? pos + 2 : pos + 1;
-            // Prevent splitting inside the markdown structural prefix
             if (splitAt > prefix.length && splitAt > bestPunctPos) {
-              bestPunctPos = splitAt;
+              if (!isInsideQuotesOrCode(substring, pos)) {
+                bestPunctPos = splitAt;
+                break;
+              }
             }
+            pos = substring.lastIndexOf(p, pos - 1);
           }
         }
 
@@ -151,7 +176,7 @@ function formatTable(tableLines) {
   const colCount = Math.max(...parsedRows.map(r => r.cells.length));
   const colWidths = new Array(colCount).fill(0);
 
-  // calculatess max width for each column (skipping the separator row)
+  // calculates max width for each column (skipping the separator row)
   parsedRows.forEach((row, rowIndex) => {
     if (rowIndex === 1) return;
     row.cells.forEach((cell, colIndex) => {
@@ -176,7 +201,7 @@ function formatTable(tableLines) {
         if (isFirst && !row.hasLeadingPipe) {
           dashCount = colWidths[colIndex] + 1;
         } else if (isLast && !row.hasTrailingPipe) {
-          // Match header length for the open-ended last column
+          // matches header length for the open-ended last column
           const headerLength = parsedRows[0].cells[colIndex] ? parsedRows[0].cells[colIndex].length : 3;
           dashCount = headerLength + 1;
         } else {
@@ -209,4 +234,33 @@ function formatTable(tableLines) {
     if (row.hasTrailingPipe) res = res + '|';
     return res.trimEnd();
   });
+}
+
+function isInsideQuotesOrCode(text, index) {
+  let inBackticks = false;
+  let inDoubleQuotes = false;
+  let inSingleQuotes = false;
+
+  for (let i = 0; i < index; i++) {
+    const char = text[i];
+    const prevChar = i > 0 ? text[i - 1] : '';
+    const nextChar = i < text.length - 1 ? text[i + 1] : '';
+
+    if (prevChar === '\\') continue;
+
+    if (char === '`') {
+      inBackticks = !inBackticks;
+    } else if (char === '"' && !inBackticks) {
+      inDoubleQuotes = !inDoubleQuotes;
+    } else if (char === "'" && !inBackticks) {
+      // handles apostrophes in words
+      const isWordBefore = /[a-zA-Z0-9]/.test(prevChar);
+      const isWordAfter = /[a-zA-Z0-9]/.test(nextChar);
+      if (!(isWordBefore && isWordAfter)) {
+        inSingleQuotes = !inSingleQuotes;
+      }
+    }
+  }
+
+  return inBackticks || inDoubleQuotes || inSingleQuotes;
 }
