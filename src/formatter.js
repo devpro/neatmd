@@ -55,50 +55,60 @@ export function formatMarkdown(content, options = {}) {
       continue;
     }
 
-    // uses standard wrap logic
-    let remaining = line;
+    // uses hardened semantic line breaks
+    // 1. (?<!\b(?:etc|vs|Mr|Mrs|Dr|Prof|Inc|Ltd)\.) -> Ignore common multi-letter abbreviations
+    // 2. (?<!\b[a-zA-Z]\.) -> Ignore single letters (handles e.g., i.e., initials)
+    // 3. (?<=[.!?]) -> Must follow a punctuation mark
+    // 4. \s+ -> Consume the space(s)
+    // 5. (?=[A-Z0-9`*_'\[]) -> The next word MUST start with a Capital letter, number, or Markdown formatting
+    const sentenceSplitRegex = /(?<!\b(?:etc|vs|Mr|Mrs|Dr|Prof|Inc|Ltd)\.)(?<!\b[a-zA-Z]\.)(?<=[.!?])\s+(?=[A-Z0-9`*_'\[])/;
+    const sentences = line.split(sentenceSplitRegex);
 
-    while (remaining.length > maxLineLength) {
-      let splitPos = -1;
-      const substring = remaining.substring(0, maxLineLength + 1);
+    for (let sentence of sentences) {
+      let remaining = sentence;
 
-      // A. looks for natural sentence breaks in the second half of the line
-      const punctuations = ['. ', ': ', '; ', '? ', '! ', ' - '];
-      let bestPunctPos = -1;
+      while (remaining.length > maxLineLength) {
+        let splitPos = -1;
+        const substring = remaining.substring(0, maxLineLength + 1);
 
-      for (const p of punctuations) {
-        const pos = substring.lastIndexOf(p);
-        if (pos !== -1) {
-          // includes the punctuation in the current line, break before the space
-          const splitAt = p === ' - ' ? pos + 2 : pos + 1;
-          if (splitAt > bestPunctPos) {
-            bestPunctPos = splitAt;
+        // A. looks for natural sentence breaks in the second half of the line
+        const punctuations = ['. ', ': ', '; ', '? ', '! ', ' - '];
+        let bestPunctPos = -1;
+
+        for (const p of punctuations) {
+          const pos = substring.lastIndexOf(p);
+          if (pos !== -1) {
+            // includes the punctuation in the current line, break before the space
+            const splitAt = p === ' - ' ? pos + 2 : pos + 1;
+            if (splitAt > bestPunctPos) {
+              bestPunctPos = splitAt;
+            }
           }
         }
-      }
 
-      // splits only at punctuation if it's reasonably far into the line (e.g., > 50% of max length)
-      if (bestPunctPos >= maxLineLength / 2) {
-        splitPos = bestPunctPos;
-      } else {
-        // B. fallbacks to standard word-wrap (last space before limit)
-        const spacePos = substring.lastIndexOf(' ');
-        if (spacePos > 0) {
-          splitPos = spacePos;
+        // splits only at punctuation if it's reasonably far into the line (e.g., > 50% of max length)
+        if (bestPunctPos >= maxLineLength / 2) {
+          splitPos = bestPunctPos;
         } else {
-          // C. finds the *next* available space, if the word is longer than max length (e.g. long URL)
-          const nextSpace = remaining.indexOf(' ', maxLineLength);
-          splitPos = nextSpace !== -1 ? nextSpace : remaining.length;
+          // B. fallbacks to standard word-wrap (last space before limit)
+          const spacePos = substring.lastIndexOf(' ');
+          if (spacePos > 0) {
+            splitPos = spacePos;
+          } else {
+            // C. finds the *next* available space, if the word is longer than max length (e.g. long URL)
+            const nextSpace = remaining.indexOf(' ', maxLineLength);
+            splitPos = nextSpace !== -1 ? nextSpace : remaining.length;
+          }
         }
+
+        output.push(remaining.substring(0, splitPos).trimEnd());
+
+        remaining = remaining.substring(splitPos).trimStart();
       }
 
-      output.push(remaining.substring(0, splitPos).trimEnd());
-
-      remaining = remaining.substring(splitPos).trimStart();
-    }
-
-    if (remaining.length > 0) {
-      output.push(remaining);
+      if (remaining.length > 0) {
+        output.push(remaining);
+      }
     }
 
     i++;

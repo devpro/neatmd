@@ -19,3 +19,5 @@ Project                  | Depends on                                           
 `WebApi.Contracts` | `Common.System`                                        | Public REST DTOs (`Dto/`), shared between `WebApi` and `BlazorApp` so the Blazor client can deserialize API responses without duplicating classes.
 `WebApi` | `Infrastructure.MongoDb`, `Domain`, `WebApi.Contracts` | ASP.NET Web API: controllers, DTO mappers, DI wiring, JWT authentication, OpenAPI/Scalar docs.
 `BlazorApp` | `Common.System`, `WebApi.Contracts`                    | Blazor Server UI. Talks to `WebApi` over HTTP using the shared DTOs; it never references `Domain` or `Infrastructure.MongoDb` directly.
+
+Let's have some fun, with tests. Here it goes!
