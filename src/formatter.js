@@ -15,6 +15,11 @@ export function formatMarkdown(content, options = {}) {
     return line.includes('|') && line.includes('-') && line.replace(/[:\-|\s]/g, '') === '';
   }
 
+  // a table is broken by the beginning of another block level structure, whatever pipes that line happens to contain
+  function startsNewBlock(line) {
+    return /^\s*(#|>|(?:[-*+]|\d+[.)])\s|```|~~~)/.test(line);
+  }
+
   let i = 0;
   while (i < lines.length) {
     let line = lines[i];
@@ -34,9 +39,11 @@ export function formatMarkdown(content, options = {}) {
     }
 
     // detects table
-    if (line.includes('|') && i + 1 < lines.length && isSeparatorLine(lines[i + 1])) {
-      let tableLines = [];
-      while (i < lines.length && lines[i].includes('|')) {
+    if (line.includes('|') && !startsNewBlock(line) && i + 1 < lines.length && isSeparatorLine(lines[i + 1])) {
+      // takes the header and the separator, then every row until a blank line or another block
+      let tableLines = [lines[i], lines[i + 1]];
+      i += 2;
+      while (i < lines.length && lines[i].includes('|') && !startsNewBlock(lines[i])) {
         tableLines.push(lines[i]);
         i++;
       }
