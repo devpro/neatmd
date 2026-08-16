@@ -202,6 +202,9 @@ export function formatMarkdown(content, options = {}) {
 }
 
 function formatTable(tableLines) {
+  // a table nested in a list item is held there by its indentation, which the header carries for the whole table
+  const indent = tableLines[0].match(/^\s*/)[0];
+
   const parsedRows = tableLines.map(line => {
     let trimmed = line.trim();
     let hasLeadingPipe = trimmed.startsWith('|');
@@ -276,7 +279,7 @@ function formatTable(tableLines) {
     let res = formattedCells.join('|');
     if (row.hasLeadingPipe) res = '|' + res;
     if (row.hasTrailingPipe) res = res + '|';
-    return res.trimEnd();
+    return (indent + res).trimEnd();
   });
 }
 

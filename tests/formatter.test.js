@@ -119,6 +119,14 @@ test('keeps the blocks written right after a table out of it', () => {
   assert.equal(formatMarkdown(input, 240), expected);
 });
 
+test('keeps the indentation of a table nested in a list item', () => {
+  // without the indentation the table would no longer belong to the item, and the list would restart below it
+  const input = '1. Uno\n\n    Col 1 | Col 2\n    -|-\n    One | Foo\n\n2. Dos\n';
+  const expected = '1. Uno\n\n    Col 1 | Col 2\n    ------|------\n    One   | Foo\n\n2. Dos\n';
+
+  assert.equal(formatMarkdown(input, 240), expected);
+});
+
 test('stops a table at the first line that opens another block', () => {
   const table = 'Key | Value\n----|------\na   | b\n';
 

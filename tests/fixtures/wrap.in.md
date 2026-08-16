@@ -65,3 +65,21 @@ neatmd docs. Then commit
 ````
 
 The '90s were a good decade for movies. A lone apostrophe holds nothing together, so this sentence still starts its own line.
+
+1. Uno
+
+    Col 1 | Col 2
+    -|-
+    One | Foo
+    two | Bar
+
+2. Dos
+
+    ```bash
+    foo=bar
+    ```
+
+3. Tres
+
+    > Hello  
+    > world!
