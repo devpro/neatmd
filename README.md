@@ -70,3 +70,9 @@ jobs:
           node-version: 22
       - run: npx neatmd --check .
 ```
+
+## 🤝 Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md).
+
+[MIT](LICENSE) licensed.
