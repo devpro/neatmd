@@ -86,3 +86,5 @@ The '90s were a good decade for movies. A lone apostrophe holds nothing together
 
 * Connect to Azure (ref. [Sign in with a personal access token](https://learn.microsoft.com/en-us/azure/devops/cli/log-in-via-pat))
 * Connect to foo (e.g. foo > bar)
+
+Ref. [learn.microsoft.com](https://learn.microsoft.com/en-us/dotnet/core/install/linux-ubuntu-install)

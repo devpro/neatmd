@@ -2,9 +2,8 @@ const DEFAULT_OPTIONS = {
   maxLineLength: 240,
 };
 
-// abbreviations that end on a full stop without ending a sentence
-// single letters, which cover "e.g.", "i.e." and initials, are handled by their own rule below
-// a word that also stands on its own, such as "no", stays out: "the answer is no." does end a sentence
+// abbreviations that end on a full stop without ending a sentence single letters,
+// which cover "e.g.", "i.e." and initials, are handled by their own rule below a word that also stands on its own, such as "no", stays out: "the answer is no." does end a sentence
 const ABBREVIATIONS = [
   'al',
   'approx',
@@ -19,7 +18,8 @@ const ABBREVIATIONS = [
   'Ms',
   'Prof',
   'ref',
-  'vs'
+  'vs',
+  'ep'
 ];
 
 // each abbreviation is matched as written and capitalised, since it can open a sentence
@@ -211,8 +211,7 @@ export function formatMarkdown(content, options = {}) {
           if (spacePos > prefix.length) {
             splitPos = spacePos;
           } else {
-            // C. finds the *next* available space, if the word is longer than max length (e.g. long URL)
-            // force wraps if a single unbroken word exceeds max limit
+            // C. finds the *next* available space, if the word is longer than max length (e.g. long URL) force wraps if a single unbroken word exceeds max limit
             const nextSpace = remaining.indexOf(' ', Math.max(maxLineLength, prefix.length));
             splitPos = nextSpace !== -1 ? nextSpace : remaining.length;
           }
@@ -321,8 +320,8 @@ function formatTable(tableLines) {
 let mappedText = null;
 let mappedPositions = null;
 
-// maps the positions that sit inside inline code, or between a matching pair of quotes
-// a lone quote character, such as the apostrophe of "the '90s", closes nothing and protects nothing
+// maps the positions that sit inside inline code, or between a matching pair of quotes a lone quote character,
+// such as the apostrophe of "the '90s", closes nothing and protects nothing
 function mapProtectedPositions(text) {
   if (text === mappedText) return mappedPositions;
 
