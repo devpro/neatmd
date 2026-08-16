@@ -72,3 +72,6 @@ Here is how a Markdown snippet is documented:
 neatmd docs. Then commit
 ```
 ````
+
+The '90s were a good decade for movies.
+A lone apostrophe holds nothing together, so this sentence still starts its own line.

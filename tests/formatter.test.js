@@ -24,6 +24,44 @@ test('formats sentence line-breaks under 240 char max line length', () => {
   assert.equal(result, expected);
 });
 
+test('only protects text held between a matching pair of quotes', () => {
+  // an unmatched quote character must not swallow the rest of the line
+  assert.equal(
+    formatMarkdown("The '90s were a good decade. This still starts a line.\n", 240),
+    "The '90s were a good decade.\nThis still starts a line.\n"
+  );
+  assert.equal(
+    formatMarkdown('A 6" nail went in. This still starts a line.\n', 240),
+    'A 6" nail went in.\nThis still starts a line.\n'
+  );
+  assert.equal(
+    formatMarkdown('Count the ` backtick. This still starts a line.\n', 240),
+    'Count the ` backtick.\nThis still starts a line.\n'
+  );
+
+  // a matching pair still holds its sentences together
+  assert.equal(
+    formatMarkdown('It told me "Hey. Santiago". And then left.\n', 240),
+    'It told me "Hey. Santiago".\nAnd then left.\n'
+  );
+  assert.equal(
+    formatMarkdown('Run `npm test. Again` now. Then stop.\n', 240),
+    'Run `npm test. Again` now.\nThen stop.\n'
+  );
+});
+
+test('splits a line holding thousands of sentences in reasonable time', () => {
+  // the quote state used to be rebuilt from the start of the line for every candidate split
+  const input = 'Aa bb. '.repeat(20000).trim() + '\n';
+
+  const start = Date.now();
+  const result = formatMarkdown(input, 240);
+  const elapsed = Date.now() - start;
+
+  assert.equal(result.split('\n').length, 20001);
+  assert.ok(elapsed < 3000, `formatting took ${elapsed} ms`);
+});
+
 test('leaves front matter untouched', () => {
   const input = '---\ntitle: Example\ndescription: One sentence. Another sentence.\n---\n\nOne. Two\n';
   const expected = '---\ntitle: Example\ndescription: One sentence. Another sentence.\n---\n\nOne.\nTwo\n';

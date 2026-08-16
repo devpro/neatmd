@@ -158,7 +158,8 @@ export function formatMarkdown(content, options = {}) {
           while (pos !== -1) {
             const splitAt = p === ' - ' ? pos + 2 : pos + 1;
             if (splitAt > prefix.length && splitAt > bestPunctPos) {
-              if (!isInsideQuotesOrCode(substring, pos)) {
+              // asks about the whole line, so a quoted phrase reaching past the limit is still seen as a pair
+              if (!isInsideQuotesOrCode(remaining, pos)) {
                 bestPunctPos = splitAt;
                 break;
               }
@@ -279,31 +280,52 @@ function formatTable(tableLines) {
   });
 }
 
-function isInsideQuotesOrCode(text, index) {
-  let inBackticks = false;
-  let inDoubleQuotes = false;
-  let inSingleQuotes = false;
+// holds the last computed map, since every candidate split position on a line asks about the same text
+let mappedText = null;
+let mappedPositions = null;
 
-  for (let i = 0; i < index; i++) {
-    const char = text[i];
-    const prevChar = i > 0 ? text[i - 1] : '';
-    const nextChar = i < text.length - 1 ? text[i + 1] : '';
+// maps the positions that sit inside inline code, or between a matching pair of quotes
+// a lone quote character, such as the apostrophe of "the '90s", closes nothing and protects nothing
+function mapProtectedPositions(text) {
+  if (text === mappedText) return mappedPositions;
 
-    if (prevChar === '\\') continue;
+  const positions = new Uint8Array(text.length);
 
-    if (char === '`') {
-      inBackticks = !inBackticks;
-    } else if (char === '"' && !inBackticks) {
-      inDoubleQuotes = !inDoubleQuotes;
-    } else if (char === "'" && !inBackticks) {
-      // handles apostrophes in words
-      const isWordBefore = /[a-zA-Z0-9]/.test(prevChar);
-      const isWordAfter = /[a-zA-Z0-9]/.test(nextChar);
-      if (!(isWordBefore && isWordAfter)) {
-        inSingleQuotes = !inSingleQuotes;
-      }
+  function protect(from, to) {
+    for (let i = from; i <= to; i++) positions[i] = 1;
+  }
+
+  // inline code first, where a run of backticks is closed by a run of the same length
+  const codeSpan = /(`+)[\s\S]*?\1/g;
+  let match;
+  while ((match = codeSpan.exec(text)) !== null) {
+    protect(match.index, match.index + match[0].length - 1);
+  }
+
+  for (const quote of ['"', "'"]) {
+    const found = [];
+
+    for (let i = 0; i < text.length; i++) {
+      if (text[i] !== quote || positions[i] === 1 || text[i - 1] === '\\') continue;
+
+      // skips apostrophes sitting inside a word
+      if (quote === "'" && /[a-zA-Z0-9]/.test(text[i - 1] || '') && /[a-zA-Z0-9]/.test(text[i + 1] || '')) continue;
+
+      found.push(i);
+    }
+
+    // pairs the quotes in order and drops any trailing unmatched one
+    for (let i = 0; i + 1 < found.length; i += 2) {
+      protect(found[i], found[i + 1]);
     }
   }
 
-  return inBackticks || inDoubleQuotes || inSingleQuotes;
+  mappedText = text;
+  mappedPositions = positions;
+  return positions;
+}
+
+function isInsideQuotesOrCode(text, index) {
+  const positions = mapProtectedPositions(text);
+  return index >= 0 && index < positions.length && positions[index] === 1;
 }
