@@ -16,20 +16,23 @@ export function processFile(filePath, options = {}) {
   const content = fs.readFileSync(filePath, 'utf-8');
 
   const formatted = formatMarkdown(content, options);
+  const isModified = content !== formatted;
 
-  if (content === formatted) {
+  if (options.check) {
+    if (isModified) {
+      console.log(`✖ Needs formatting: ${filePath}`);
+    }
+    return isModified;
+  }
+
+  // an explicit output file is always written, even when the source is already neat, otherwise the requested file would be missing
+  if (!isModified && !options.output) {
     return false;
   }
 
-  if (options.check) {
-    console.log(`✖ Needs formatting: ${filePath}`);
-    return true;
-  }
-
-  const outputPath = options.output || filePath;
-  fs.writeFileSync(outputPath, formatted, 'utf-8');
+  fs.writeFileSync(options.output || filePath, formatted, 'utf-8');
   console.log(`✔ Formatted: ${filePath}`);
-  return true;
+  return isModified;
 }
 
 export function processDirectory(dirPath, options = {}) {

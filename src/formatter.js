@@ -2,6 +2,41 @@ const DEFAULT_OPTIONS = {
   maxLineLength: 240,
 };
 
+// abbreviations that end on a full stop without ending a sentence single letters,
+// which cover "e.g.", "i.e." and initials, are handled by their own rule below a word that also stands on its own, such as "no", stays out: "the answer is no." does end a sentence
+const ABBREVIATIONS = [
+  'al',
+  'approx',
+  'cf',
+  'Dr',
+  'etc',
+  'fig',
+  'Inc',
+  'Ltd',
+  'Mr',
+  'Mrs',
+  'Ms',
+  'Prof',
+  'ref',
+  'vs',
+  'ep'
+];
+
+// each abbreviation is matched as written and capitalised, since it can open a sentence
+const abbreviationAlternatives = [...new Set(
+  ABBREVIATIONS.flatMap(word => [word, word[0].toUpperCase() + word.slice(1)])
+)].join('|');
+
+// uses hardened semantic line breaks
+// 1. (?<!\b(?:etc|ref|...)\.) -> Ignore known abbreviations
+// 2. (?<!\b[a-zA-Z]\.) -> Ignore single letters (handles e.g., i.e., initials)
+// 3. (?<=[.!?]) -> Must follow a punctuation mark
+// 4. \s+ -> Consume the space(s)
+// 5. (?=[A-Z0-9`*_'\[]) -> The next word MUST start with a Capital letter, number, or Markdown formatting
+const SENTENCE_SPLIT_REGEX = new RegExp(
+  `(?<!\\b(?:${abbreviationAlternatives})\\.)(?<!\\b[a-zA-Z]\\.)(?<=[.!?])\\s+(?=[A-Z0-9\`*_'\\[])`
+);
+
 export function formatMarkdown(content, options = {}) {
   const maxLineLength = typeof options === 'number'
     ? options
@@ -9,34 +44,70 @@ export function formatMarkdown(content, options = {}) {
 
   const lines = content.split(/\r?\n/);
   const output = [];
-  let inCodeBlock = false;
+
+  // holds the marker of the fenced block being crossed, such as "```" or "~~~~", and null outside of any block
+  let openFence = null;
+
+  function readFence(line) {
+    const match = line.trim().match(/^(`{3,}|~{3,})(.*)$/);
+    return match ? { marker: match[1], info: match[2] } : null;
+  }
+
+  // a fence is closed by at least as many of the same character, with nothing but spaces after it
+  function closesFence(fence) {
+    return fence.marker[0] === openFence[0]
+      && fence.marker.length >= openFence.length
+      && fence.info.trim() === '';
+  }
 
   function isSeparatorLine(line) {
     return line.includes('|') && line.includes('-') && line.replace(/[:\-|\s]/g, '') === '';
   }
 
-  let i = 0;
-  while (i < lines.length) {
-    let line = lines[i];
+  // a table is broken by the beginning of another block level structure, whatever pipes that line happens to contain
+  function startsNewBlock(line) {
+    return /^\s*(#|>|(?:[-*+]|\d+[.)])\s|```|~~~)/.test(line);
+  }
 
-    // toggles code blocks
-    if (line.trim().startsWith('```')) {
-      inCodeBlock = !inCodeBlock;
+  let i = 0;
+
+  // copies front matter verbatim, which is metadata rather than Markdown
+  // an opening marker with no closing one is a thematic break, so the document is formatted from the top as usual
+  if (lines[0]?.trim() === '---') {
+    const closing = lines.findIndex((candidate, index) => index > 0 && candidate.trim() === '---');
+    if (closing !== -1) {
+      output.push(...lines.slice(0, closing + 1));
+      i = closing + 1;
+    }
+  }
+
+  while (i < lines.length) {
+    const line = lines[i];
+    const fence = readFence(line);
+
+    // opens and closes fenced blocks, whose content is never touched
+    if (openFence) {
+      if (fence && closesFence(fence)) {
+        openFence = null;
+      }
       output.push(line);
       i++;
       continue;
     }
 
-    if (inCodeBlock) {
+    if (fence) {
+      openFence = fence.marker;
       output.push(line);
       i++;
       continue;
     }
 
     // detects table
-    if (line.includes('|') && i + 1 < lines.length && isSeparatorLine(lines[i + 1])) {
-      let tableLines = [];
-      while (i < lines.length && lines[i].includes('|')) {
+    if (line.includes('|') && !startsNewBlock(line) && i + 1 < lines.length && isSeparatorLine(lines[i + 1])) {
+      // takes the header and the separator, then every row until a blank line or another block
+      let tableLines = [lines[i], lines[i + 1]];
+      i += 2;
+      while (i < lines.length && lines[i].includes('|') && !startsNewBlock(lines[i])) {
         tableLines.push(lines[i]);
         i++;
       }
@@ -48,8 +119,19 @@ export function formatMarkdown(content, options = {}) {
     // detects lines that are strictly badges, images, or links (e.g., [![Alt](url)](url) or [Text](url))
     const isLinkOrImage = /^\s*!?\[.*\]\(.*\)\s*$/.test(line);
 
-    // ignores empty lines, headings, and link/image lines
-    if (line.trim() === '' || line.startsWith('#') || isLinkOrImage) {
+    // detects a thematic break, whose first character would otherwise read as a list marker
+    const isThematicBreak = /^\s*([-*_])(?:\s*\1){2,}\s*$/.test(line);
+
+    // empties a line holding nothing but spacing
+    // the trailing spaces of a line carrying content are a hard line break, so they are left alone
+    if (line.trim() === '') {
+      output.push('');
+      i++;
+      continue;
+    }
+
+    // ignores headings, thematic breaks, and link/image lines
+    if (line.startsWith('#') || isThematicBreak || isLinkOrImage) {
       output.push(line);
       i++;
       continue;
@@ -58,20 +140,23 @@ export function formatMarkdown(content, options = {}) {
     // isolates blockquotes, ordered lists (1., 2)), and unordered lists (-, *, +)
     const prefixMatch = line.match(/^(\s*(?:>\s*)*)((?:[-*+]|\d+[.)])\s+)?/);
     const bqPart = prefixMatch[1] || '';
-    const listPart = prefixMatch[2] || '';
+    const sourceListPart = prefixMatch[2] || '';
+
+    // an unordered list is written with a dash, whatever marker the source used
+    const listPart = sourceListPart.replace(/^[*+]/, '-');
 
     const prefix = bqPart + listPart; // E.g., "  1. "
     const indentPrefix = bqPart + ' '.repeat(listPart.length); // E.g., "     "
-    const textToProcess = line.substring(prefix.length);
+    const textToProcess = line.substring(bqPart.length + sourceListPart.length);
 
-    // uses hardened semantic line breaks
-    // 1. (?<!\b(?:etc|vs|Mr|Mrs|Dr|Prof|Inc|Ltd)\.) -> Ignore common multi-letter abbreviations
-    // 2. (?<!\b[a-zA-Z]\.) -> Ignore single letters (handles e.g., i.e., initials)
-    // 3. (?<=[.!?]) -> Must follow a punctuation mark
-    // 4. \s+ -> Consume the space(s)
-    // 5. (?=[A-Z0-9`*_'\[]) -> The next word MUST start with a Capital letter, number, or Markdown formatting
-    const sentenceSplitRegex = /(?<!\b(?:etc|vs|Mr|Mrs|Dr|Prof|Inc|Ltd)\.)(?<!\b[a-zA-Z]\.)(?<=[.!?])\s+(?=[A-Z0-9`*_'\[])/;
-    const rawSentences = textToProcess.split(sentenceSplitRegex);
+    // keeps marker only lines, such as the ">" separating two blockquote paragraphs, since there is no text to split
+    if (textToProcess.trim() === '') {
+      output.push(prefix + textToProcess);
+      i++;
+      continue;
+    }
+
+    const rawSentences = textToProcess.split(SENTENCE_SPLIT_REGEX);
 
     // Re-joins any sentence split that occurred inside quotes or inline code
     const sentences = [];
@@ -115,7 +200,8 @@ export function formatMarkdown(content, options = {}) {
           while (pos !== -1) {
             const splitAt = p === ' - ' ? pos + 2 : pos + 1;
             if (splitAt > prefix.length && splitAt > bestPunctPos) {
-              if (!isInsideQuotesOrCode(substring, pos)) {
+              // asks about the whole line, so a quoted phrase reaching past the limit is still seen as a pair
+              if (!isInsideQuotesOrCode(remaining, pos)) {
                 bestPunctPos = splitAt;
                 break;
               }
@@ -133,8 +219,7 @@ export function formatMarkdown(content, options = {}) {
           if (spacePos > prefix.length) {
             splitPos = spacePos;
           } else {
-            // C. finds the *next* available space, if the word is longer than max length (e.g. long URL)
-            // force wraps if a single unbroken word exceeds max limit
+            // C. finds the *next* available space, if the word is longer than max length (e.g. long URL) force wraps if a single unbroken word exceeds max limit
             const nextSpace = remaining.indexOf(' ', Math.max(maxLineLength, prefix.length));
             splitPos = nextSpace !== -1 ? nextSpace : remaining.length;
           }
@@ -153,11 +238,16 @@ export function formatMarkdown(content, options = {}) {
     i++;
   }
 
-  // strips trailing empty lines and append exactly one EOF newline
-  return output.join('\n').replace(/\n+$/, '') + '\n';
+  // strips trailing empty lines and appends exactly one EOF newline
+  // a document holding no content stays empty, since that newline would read as a second line
+  const formatted = output.join('\n').replace(/\n+$/, '');
+  return formatted === '' ? '' : formatted + '\n';
 }
 
 function formatTable(tableLines) {
+  // a table nested in a list item is held there by its indentation, which the header carries for the whole table
+  const indent = tableLines[0].match(/^\s*/)[0];
+
   const parsedRows = tableLines.map(line => {
     let trimmed = line.trim();
     let hasLeadingPipe = trimmed.startsWith('|');
@@ -232,35 +322,56 @@ function formatTable(tableLines) {
     let res = formattedCells.join('|');
     if (row.hasLeadingPipe) res = '|' + res;
     if (row.hasTrailingPipe) res = res + '|';
-    return res.trimEnd();
+    return (indent + res).trimEnd();
   });
 }
 
-function isInsideQuotesOrCode(text, index) {
-  let inBackticks = false;
-  let inDoubleQuotes = false;
-  let inSingleQuotes = false;
+// holds the last computed map, since every candidate split position on a line asks about the same text
+let mappedText = null;
+let mappedPositions = null;
 
-  for (let i = 0; i < index; i++) {
-    const char = text[i];
-    const prevChar = i > 0 ? text[i - 1] : '';
-    const nextChar = i < text.length - 1 ? text[i + 1] : '';
+// maps the positions that sit inside inline code, or between a matching pair of quotes a lone quote character,
+// such as the apostrophe of "the '90s", closes nothing and protects nothing
+function mapProtectedPositions(text) {
+  if (text === mappedText) return mappedPositions;
 
-    if (prevChar === '\\') continue;
+  const positions = new Uint8Array(text.length);
 
-    if (char === '`') {
-      inBackticks = !inBackticks;
-    } else if (char === '"' && !inBackticks) {
-      inDoubleQuotes = !inDoubleQuotes;
-    } else if (char === "'" && !inBackticks) {
-      // handles apostrophes in words
-      const isWordBefore = /[a-zA-Z0-9]/.test(prevChar);
-      const isWordAfter = /[a-zA-Z0-9]/.test(nextChar);
-      if (!(isWordBefore && isWordAfter)) {
-        inSingleQuotes = !inSingleQuotes;
-      }
+  function protect(from, to) {
+    for (let i = from; i <= to; i++) positions[i] = 1;
+  }
+
+  // inline code first, where a run of backticks is closed by a run of the same length
+  const codeSpan = /(`+)[\s\S]*?\1/g;
+  let match;
+  while ((match = codeSpan.exec(text)) !== null) {
+    protect(match.index, match.index + match[0].length - 1);
+  }
+
+  for (const quote of ['"', "'"]) {
+    const found = [];
+
+    for (let i = 0; i < text.length; i++) {
+      if (text[i] !== quote || positions[i] === 1 || text[i - 1] === '\\') continue;
+
+      // skips apostrophes sitting inside a word
+      if (quote === "'" && /[a-zA-Z0-9]/.test(text[i - 1] || '') && /[a-zA-Z0-9]/.test(text[i + 1] || '')) continue;
+
+      found.push(i);
+    }
+
+    // pairs the quotes in order and drops any trailing unmatched one
+    for (let i = 0; i + 1 < found.length; i += 2) {
+      protect(found[i], found[i + 1]);
     }
   }
 
-  return inBackticks || inDoubleQuotes || inSingleQuotes;
+  mappedText = text;
+  mappedPositions = positions;
+  return positions;
+}
+
+function isInsideQuotesOrCode(text, index) {
+  const positions = mapProtectedPositions(text);
+  return index >= 0 && index < positions.length && positions[index] === 1;
 }

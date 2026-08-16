@@ -1,3 +1,8 @@
+---
+title: Example
+description: One sentence. Another sentence.
+---
+
 # Example
 
 [![FOSSA Status](https://app.fossa.com/api/projects/custom%2B60068%2Fgithub.com%2Fdevpro%2Fkeeptrack.svg?type=shield&issueType=license)](https://app.fossa.com/projects/custom%2B60068%2Fgithub.com%2Fdevpro%2Fkeeptrack?ref=badge_shield&issueType=license)
@@ -54,3 +59,46 @@ Console.WriteLine("Hello Markdown");
 ```
 
 At some point, it told me "Hey. Santiago".
+
+> Hello:
+>
+> World
+
+A fence is only closed by a longer one.
+Here is how a Markdown snippet is documented:
+
+````markdown
+```bash
+neatmd docs. Then commit
+```
+````
+
+The '90s were a good decade for movies.
+A lone apostrophe holds nothing together, so this sentence still starts its own line.
+
+1. Uno
+
+    Col 1 | Col 2
+    ------|------
+    One   | Foo
+    two   | Bar
+
+2. Dos
+
+    ```bash
+    foo=bar
+    ```
+
+3. Tres
+
+    > Hello  
+    > world!
+
+- Connect to Azure (ref. [Sign in with a personal access token](https://learn.microsoft.com/en-us/azure/devops/cli/log-in-via-pat))
+- Connect to foo (e.g. foo > bar)
+
+Ref. [learn.microsoft.com](https://learn.microsoft.com/en-us/dotnet/core/install/linux-ubuntu-install)
+
+Text sits before a line holding only spaces.
+
+Text sits after it.
