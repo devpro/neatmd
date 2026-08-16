@@ -1,6 +1,6 @@
 # Contributing
 
-## Local run from the source
+## Run from the source
 
 Experiment on a local path:
 
@@ -8,7 +8,7 @@ Experiment on a local path:
 node bin/cli.js tests/fixtures/wrap.in.md -o tests/fixtures/wrap.res.md
 ```
 
-## Local run with NPM
+## Run with local NPM package
 
 Create the NPM dry-run package:
 
@@ -20,6 +20,14 @@ Test a local path:
 
 ```bash
 npx . README.md
+```
+
+## Run official NPM package
+
+To actually test the published version, from anywhere but the repo:
+
+```bash
+cd ~ && npx --prefer-online neatmd@0.1.4 repos/<my-repo>/
 ```
 
 ## CI/CD Pipelines
