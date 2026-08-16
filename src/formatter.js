@@ -2,6 +2,41 @@ const DEFAULT_OPTIONS = {
   maxLineLength: 240,
 };
 
+// abbreviations that end on a full stop without ending a sentence
+// single letters, which cover "e.g.", "i.e." and initials, are handled by their own rule below
+// a word that also stands on its own, such as "no", stays out: "the answer is no." does end a sentence
+const ABBREVIATIONS = [
+  'al',
+  'approx',
+  'cf',
+  'Dr',
+  'etc',
+  'fig',
+  'Inc',
+  'Ltd',
+  'Mr',
+  'Mrs',
+  'Ms',
+  'Prof',
+  'ref',
+  'vs'
+];
+
+// each abbreviation is matched as written and capitalised, since it can open a sentence
+const abbreviationAlternatives = [...new Set(
+  ABBREVIATIONS.flatMap(word => [word, word[0].toUpperCase() + word.slice(1)])
+)].join('|');
+
+// uses hardened semantic line breaks
+// 1. (?<!\b(?:etc|ref|...)\.) -> Ignore known abbreviations
+// 2. (?<!\b[a-zA-Z]\.) -> Ignore single letters (handles e.g., i.e., initials)
+// 3. (?<=[.!?]) -> Must follow a punctuation mark
+// 4. \s+ -> Consume the space(s)
+// 5. (?=[A-Z0-9`*_'\[]) -> The next word MUST start with a Capital letter, number, or Markdown formatting
+const SENTENCE_SPLIT_REGEX = new RegExp(
+  `(?<!\\b(?:${abbreviationAlternatives})\\.)(?<!\\b[a-zA-Z]\\.)(?<=[.!?])\\s+(?=[A-Z0-9\`*_'\\[])`
+);
+
 export function formatMarkdown(content, options = {}) {
   const maxLineLength = typeof options === 'number'
     ? options
@@ -84,8 +119,11 @@ export function formatMarkdown(content, options = {}) {
     // detects lines that are strictly badges, images, or links (e.g., [![Alt](url)](url) or [Text](url))
     const isLinkOrImage = /^\s*!?\[.*\]\(.*\)\s*$/.test(line);
 
-    // ignores empty lines, headings, and link/image lines
-    if (line.trim() === '' || line.startsWith('#') || isLinkOrImage) {
+    // detects a thematic break, whose first character would otherwise read as a list marker
+    const isThematicBreak = /^\s*([-*_])(?:\s*\1){2,}\s*$/.test(line);
+
+    // ignores empty lines, headings, thematic breaks, and link/image lines
+    if (line.trim() === '' || line.startsWith('#') || isThematicBreak || isLinkOrImage) {
       output.push(line);
       i++;
       continue;
@@ -94,27 +132,23 @@ export function formatMarkdown(content, options = {}) {
     // isolates blockquotes, ordered lists (1., 2)), and unordered lists (-, *, +)
     const prefixMatch = line.match(/^(\s*(?:>\s*)*)((?:[-*+]|\d+[.)])\s+)?/);
     const bqPart = prefixMatch[1] || '';
-    const listPart = prefixMatch[2] || '';
+    const sourceListPart = prefixMatch[2] || '';
+
+    // an unordered list is written with a dash, whatever marker the source used
+    const listPart = sourceListPart.replace(/^[*+]/, '-');
 
     const prefix = bqPart + listPart; // E.g., "  1. "
     const indentPrefix = bqPart + ' '.repeat(listPart.length); // E.g., "     "
-    const textToProcess = line.substring(prefix.length);
+    const textToProcess = line.substring(bqPart.length + sourceListPart.length);
 
     // keeps marker only lines, such as the ">" separating two blockquote paragraphs, since there is no text to split
     if (textToProcess.trim() === '') {
-      output.push(line);
+      output.push(prefix + textToProcess);
       i++;
       continue;
     }
 
-    // uses hardened semantic line breaks
-    // 1. (?<!\b(?:etc|vs|Mr|Mrs|Dr|Prof|Inc|Ltd)\.) -> Ignore common multi-letter abbreviations
-    // 2. (?<!\b[a-zA-Z]\.) -> Ignore single letters (handles e.g., i.e., initials)
-    // 3. (?<=[.!?]) -> Must follow a punctuation mark
-    // 4. \s+ -> Consume the space(s)
-    // 5. (?=[A-Z0-9`*_'\[]) -> The next word MUST start with a Capital letter, number, or Markdown formatting
-    const sentenceSplitRegex = /(?<!\b(?:etc|vs|Mr|Mrs|Dr|Prof|Inc|Ltd)\.)(?<!\b[a-zA-Z]\.)(?<=[.!?])\s+(?=[A-Z0-9`*_'\[])/;
-    const rawSentences = textToProcess.split(sentenceSplitRegex);
+    const rawSentences = textToProcess.split(SENTENCE_SPLIT_REGEX);
 
     // Re-joins any sentence split that occurred inside quotes or inline code
     const sentences = [];

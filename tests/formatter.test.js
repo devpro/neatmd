@@ -24,6 +24,42 @@ test('formats sentence line-breaks under 240 char max line length', () => {
   assert.equal(result, expected);
 });
 
+test('does not end a sentence on a known abbreviation', () => {
+  const kept = [
+    '- Connect to Azure (ref. [Sign in](https://example.com/pat))\n',
+    'The rule is documented (cf. [Section 2](https://example.com)) already.\n',
+    'It weighs approx. 3 kilos.\n',
+    'See fig. 4 for the layout.\n',
+    'Written by Barnes et al. [2019](https://example.com) last year.\n',
+    'Tabs, spaces, etc. [Nothing](https://example.com) settles it.\n'
+  ];
+
+  for (const input of kept) {
+    assert.equal(formatMarkdown(input, 240), input);
+  }
+
+  // a real sentence boundary is still one, including right after an abbreviation
+  assert.equal(
+    formatMarkdown('The ref. [Doc](https://example.com) helps. Another sentence.\n', 240),
+    'The ref. [Doc](https://example.com) helps.\nAnother sentence.\n'
+  );
+});
+
+test('writes unordered list markers as a dash', () => {
+  assert.equal(formatMarkdown('* Item\n+ Other\n- Third\n', 240), '- Item\n- Other\n- Third\n');
+  assert.equal(formatMarkdown('- Item\n  * Nested\n', 240), '- Item\n  - Nested\n');
+  assert.equal(formatMarkdown('> * Quoted item\n', 240), '> - Quoted item\n');
+
+  // ordered markers keep their own punctuation
+  assert.equal(formatMarkdown('1. Item\n2) Other\n', 240), '1. Item\n2) Other\n');
+
+  // a thematic break is not a list, and neither is emphasis
+  const untouched = ['* * *\n', '***\n', '- - -\n', '___\n', '*emphasis* to start a line.\n'];
+  for (const input of untouched) {
+    assert.equal(formatMarkdown(input, 240), input);
+  }
+});
+
 test('only protects text held between a matching pair of quotes', () => {
   // an unmatched quote character must not swallow the rest of the line
   assert.equal(

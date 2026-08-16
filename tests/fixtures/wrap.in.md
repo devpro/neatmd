@@ -83,3 +83,6 @@ The '90s were a good decade for movies. A lone apostrophe holds nothing together
 
     > Hello  
     > world!
+
+* Connect to Azure (ref. [Sign in with a personal access token](https://learn.microsoft.com/en-us/azure/devops/cli/log-in-via-pat))
+* Connect to foo (e.g. foo > bar)
