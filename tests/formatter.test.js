@@ -23,3 +23,16 @@ test('formats sentence line-breaks under 240 char max line length', () => {
 
   assert.equal(result, expected);
 });
+
+test('keeps marker only lines that carry no text', () => {
+  const cases = [
+    '> Hello:\n>\n> World\n',
+    '> > Nested:\n> >\n> > Quote\n',
+    '1. First\n\n   > Quoted:\n   >\n   > Continued\n',
+    '- First\n-\n- Second\n'
+  ];
+
+  for (const input of cases) {
+    assert.equal(formatMarkdown(input, 240), input);
+  }
+});

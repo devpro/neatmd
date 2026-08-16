@@ -64,6 +64,13 @@ export function formatMarkdown(content, options = {}) {
     const indentPrefix = bqPart + ' '.repeat(listPart.length); // E.g., "     "
     const textToProcess = line.substring(prefix.length);
 
+    // keeps marker only lines, such as the ">" separating two blockquote paragraphs, since there is no text to split
+    if (textToProcess.trim() === '') {
+      output.push(line);
+      i++;
+      continue;
+    }
+
     // uses hardened semantic line breaks
     // 1. (?<!\b(?:etc|vs|Mr|Mrs|Dr|Prof|Inc|Ltd)\.) -> Ignore common multi-letter abbreviations
     // 2. (?<!\b[a-zA-Z]\.) -> Ignore single letters (handles e.g., i.e., initials)
