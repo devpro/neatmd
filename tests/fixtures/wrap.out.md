@@ -58,3 +58,12 @@ At some point, it told me "Hey. Santiago".
 > Hello:
 >
 > World
+
+A fence is only closed by a longer one.
+Here is how a Markdown snippet is documented:
+
+````markdown
+```bash
+neatmd docs. Then commit
+```
+````

@@ -24,6 +24,31 @@ test('formats sentence line-breaks under 240 char max line length', () => {
   assert.equal(result, expected);
 });
 
+test('leaves the content of every kind of fenced block alone', () => {
+  const cases = [
+    // tilde fences are as valid as backtick fences
+    '~~~bash\nls. Then stop\n~~~\n',
+    // a fence is only closed by at least as many of the same character
+    '````markdown\n```bash\nls. Then stop\n```\n````\n',
+    '~~~~\n~~~\nls. Then stop\n~~~\n~~~~\n',
+    // a backtick line never closes a tilde block, and the other way round
+    '~~~\nls. Then stop\n```\nmore. Text\n~~~\n',
+    // a closing fence carries no info string, so this one stays inside the block
+    '````\n```js\nconst a = 1. Then two\n```\n````\n'
+  ];
+
+  for (const input of cases) {
+    assert.equal(formatMarkdown(input, 240), input);
+  }
+});
+
+test('formats again after a fenced block is closed', () => {
+  const input = '~~~bash\nls. Then stop\n~~~\n\nOne. Two\n';
+  const expected = '~~~bash\nls. Then stop\n~~~\n\nOne.\nTwo\n';
+
+  assert.equal(formatMarkdown(input, 240), expected);
+});
+
 test('stops a table at the first line that opens another block', () => {
   const table = 'Key | Value\n----|------\na   | b\n';
 

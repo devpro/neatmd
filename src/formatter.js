@@ -9,7 +9,21 @@ export function formatMarkdown(content, options = {}) {
 
   const lines = content.split(/\r?\n/);
   const output = [];
-  let inCodeBlock = false;
+
+  // holds the marker of the fenced block being crossed, such as "```" or "~~~~", and null outside of any block
+  let openFence = null;
+
+  function readFence(line) {
+    const match = line.trim().match(/^(`{3,}|~{3,})(.*)$/);
+    return match ? { marker: match[1], info: match[2] } : null;
+  }
+
+  // a fence is closed by at least as many of the same character, with nothing but spaces after it
+  function closesFence(fence) {
+    return fence.marker[0] === openFence[0]
+      && fence.marker.length >= openFence.length
+      && fence.info.trim() === '';
+  }
 
   function isSeparatorLine(line) {
     return line.includes('|') && line.includes('-') && line.replace(/[:\-|\s]/g, '') === '';
@@ -22,17 +36,21 @@ export function formatMarkdown(content, options = {}) {
 
   let i = 0;
   while (i < lines.length) {
-    let line = lines[i];
+    const line = lines[i];
+    const fence = readFence(line);
 
-    // toggles code blocks
-    if (line.trim().startsWith('```')) {
-      inCodeBlock = !inCodeBlock;
+    // opens and closes fenced blocks, whose content is never touched
+    if (openFence) {
+      if (fence && closesFence(fence)) {
+        openFence = null;
+      }
       output.push(line);
       i++;
       continue;
     }
 
-    if (inCodeBlock) {
+    if (fence) {
+      openFence = fence.marker;
       output.push(line);
       i++;
       continue;
