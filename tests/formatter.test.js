@@ -105,6 +105,16 @@ test('formats again after a fenced block is closed', () => {
   assert.equal(formatMarkdown(input, 240), expected);
 });
 
+test('keeps the blocks written right after a table out of it', () => {
+  // the tables in this fixture are already laid out, so a swallowed block would show up as a widened column
+  const input = readFileSync(
+    new URL('./fixtures/table-break.in.md', import.meta.url),
+    'utf-8'
+  );
+
+  assert.equal(formatMarkdown(input, 240), input);
+});
+
 test('stops a table at the first line that opens another block', () => {
   const table = 'Key | Value\n----|------\na   | b\n';
 
