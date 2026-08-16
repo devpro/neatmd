@@ -98,3 +98,7 @@ A lone apostrophe holds nothing together, so this sentence still starts its own 
 - Connect to foo (e.g. foo > bar)
 
 Ref. [learn.microsoft.com](https://learn.microsoft.com/en-us/dotnet/core/install/linux-ubuntu-install)
+
+Text sits before a line holding only spaces.
+
+Text sits after it.

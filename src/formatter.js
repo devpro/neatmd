@@ -122,8 +122,16 @@ export function formatMarkdown(content, options = {}) {
     // detects a thematic break, whose first character would otherwise read as a list marker
     const isThematicBreak = /^\s*([-*_])(?:\s*\1){2,}\s*$/.test(line);
 
-    // ignores empty lines, headings, thematic breaks, and link/image lines
-    if (line.trim() === '' || line.startsWith('#') || isThematicBreak || isLinkOrImage) {
+    // empties a line holding nothing but spacing
+    // the trailing spaces of a line carrying content are a hard line break, so they are left alone
+    if (line.trim() === '') {
+      output.push('');
+      i++;
+      continue;
+    }
+
+    // ignores headings, thematic breaks, and link/image lines
+    if (line.startsWith('#') || isThematicBreak || isLinkOrImage) {
       output.push(line);
       i++;
       continue;
@@ -230,8 +238,10 @@ export function formatMarkdown(content, options = {}) {
     i++;
   }
 
-  // strips trailing empty lines and append exactly one EOF newline
-  return output.join('\n').replace(/\n+$/, '') + '\n';
+  // strips trailing empty lines and appends exactly one EOF newline
+  // a document holding no content stays empty, since that newline would read as a second line
+  const formatted = output.join('\n').replace(/\n+$/, '');
+  return formatted === '' ? '' : formatted + '\n';
 }
 
 function formatTable(tableLines) {

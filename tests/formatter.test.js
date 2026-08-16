@@ -24,6 +24,26 @@ test('formats sentence line-breaks under 240 char max line length', () => {
   assert.equal(result, expected);
 });
 
+test('leaves a document without content empty', () => {
+  // a final newline added to an empty file shows up as a second, invalid line
+  assert.equal(formatMarkdown('', 240), '');
+  assert.equal(formatMarkdown('\n', 240), '');
+  assert.equal(formatMarkdown('   \n\n  \n', 240), '');
+});
+
+test('empties a line holding nothing but spaces', () => {
+  assert.equal(formatMarkdown('One.\n   \nTwo.\n', 240), 'One.\n\nTwo.\n');
+  assert.equal(formatMarkdown('- Item\n\t\n- Other\n', 240), '- Item\n\n- Other\n');
+
+  // the trailing spaces of a line with content are a hard line break and stay
+  assert.equal(formatMarkdown('One.  \nTwo.\n', 240), 'One.  \nTwo.\n');
+  assert.equal(formatMarkdown('> Hello  \n> world!\n', 240), '> Hello  \n> world!\n');
+
+  // spacing is content inside a fenced block and inside front matter
+  assert.equal(formatMarkdown('```text\n   \n```\n', 240), '```text\n   \n```\n');
+  assert.equal(formatMarkdown('---\na: 1\n   \n---\n\nBody.\n', 240), '---\na: 1\n   \n---\n\nBody.\n');
+});
+
 test('does not end a sentence on a known abbreviation', () => {
   const kept = [
     '- Connect to Azure (ref. [Sign in](https://example.com/pat))\n',

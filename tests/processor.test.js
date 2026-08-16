@@ -59,6 +59,18 @@ test('formats in place when no output file is given', () => {
   });
 });
 
+test('leaves an empty file alone', () => {
+  withTempDir(dir => {
+    const source = path.join(dir, 'empty.md');
+    fs.writeFileSync(source, '', 'utf-8');
+
+    const modified = processFile(source, { maxLineLength: 240 });
+
+    assert.equal(modified, false);
+    assert.equal(fs.readFileSync(source, 'utf-8'), '');
+  });
+});
+
 test('check mode reports without writing anything', () => {
   withTempDir(dir => {
     const source = path.join(dir, 'input.md');
