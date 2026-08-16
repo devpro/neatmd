@@ -24,6 +24,24 @@ test('formats sentence line-breaks under 240 char max line length', () => {
   assert.equal(result, expected);
 });
 
+test('leaves front matter untouched', () => {
+  const input = '---\ntitle: Example\ndescription: One sentence. Another sentence.\n---\n\nOne. Two\n';
+  const expected = '---\ntitle: Example\ndescription: One sentence. Another sentence.\n---\n\nOne.\nTwo\n';
+
+  assert.equal(formatMarkdown(input, 240), expected);
+});
+
+test('only treats a leading fence of dashes as front matter when it is closed', () => {
+  // an opening marker with no closing one is a thematic break, and the text below it is ordinary prose
+  assert.equal(formatMarkdown('---\nOne. Two\n', 240), '---\nOne.\nTwo\n');
+
+  // a thematic break in the middle of a document never opens front matter
+  assert.equal(
+    formatMarkdown('Intro. Here\n\n---\n\ntitle: One. Two\n', 240),
+    'Intro.\nHere\n\n---\n\ntitle: One.\nTwo\n'
+  );
+});
+
 test('leaves the content of every kind of fenced block alone', () => {
   const cases = [
     // tilde fences are as valid as backtick fences

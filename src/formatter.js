@@ -35,6 +35,17 @@ export function formatMarkdown(content, options = {}) {
   }
 
   let i = 0;
+
+  // copies front matter verbatim, which is metadata rather than Markdown
+  // an opening marker with no closing one is a thematic break, so the document is formatted from the top as usual
+  if (lines[0]?.trim() === '---') {
+    const closing = lines.findIndex((candidate, index) => index > 0 && candidate.trim() === '---');
+    if (closing !== -1) {
+      output.push(...lines.slice(0, closing + 1));
+      i = closing + 1;
+    }
+  }
+
   while (i < lines.length) {
     const line = lines[i];
     const fence = readFence(line);
