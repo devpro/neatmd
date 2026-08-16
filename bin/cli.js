@@ -47,6 +47,11 @@ try {
 
   const stat = fs.statSync(targetPath);
 
+  if (values.output && stat.isDirectory()) {
+    console.error('✖ Error: --output only applies to a single file.');
+    process.exit(1);
+  }
+
   const targetDir = stat.isDirectory() ? targetPath : path.dirname(targetPath);
   const configPath = [
     path.join(targetDir, '.editorconfig'),
