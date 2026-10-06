@@ -7,7 +7,7 @@
 
 > A fast Markdown formatter for clean and consistent documentation.
 
-`neatmd` keeps your Markdown files neat, standardizing headings, list indentation, code blocks, and table alignments effortlessly.
+`neatmd` keeps Markdown files neat, standardizing headings, list indentation, code blocks, and table alignments effortlessly.
 
 ## 📦 Installation
 
@@ -45,16 +45,17 @@ neatmd --check .
 
 ## 🛠️ Options & Flags
 
-Flag        | Short | Description                                           | Default
-------------|-------|-------------------------------------------------------|--------
-`--check`   | `-c`  | Verify formatting and exit with code 1 if unformatted | `false`
-`--verbose` | `-v`  | Output detailed progress logs                         | `false`
-`--version` | `-V`  | Print current version                                 | —
-`--help`    | `-h`  | Display help menu                                     | —
+Flag         | Short | Description                                                                        | Default
+-------------|-------|------------------------------------------------------------------------------------|--------
+`--check`    | `-c`  | Verify formatting and exit with code 1 if unformatted                              | `false`
+`--comments` |       | Also break long comments in source files, see [docs/comments.md](docs/comments.md) | `false`
+`--verbose`  | `-v`  | Output detailed progress logs                                                      | `false`
+`--version`  | `-V`  | Print current version                                                              | none
+`--help`     | `-h`  | Display help menu                                                                  | none
 
 ## 🤖 CI Workflow Example
 
-Add `neatmd` to your GitHub Actions workflow to ensure PRs maintain clean docs:
+Add `neatmd` to a GitHub Actions workflow to ensure PRs maintain clean docs:
 
 ```yaml
 name: Lint Docs

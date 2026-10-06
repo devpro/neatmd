@@ -1,6 +1,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { formatMarkdown } from './formatter.js';
+import { loadConfig } from './config.js';
+import { splitComments, commentStyleOf } from './comments.js';
 
 const DEFAULT_IGNORED_DIRS = new Set([
   'node_modules',
@@ -15,7 +17,17 @@ const DEFAULT_IGNORED_DIRS = new Set([
 export function processFile(filePath, options = {}) {
   const content = fs.readFileSync(filePath, 'utf-8');
 
-  const formatted = formatMarkdown(content, options);
+  const style = commentStyleOf(filePath);
+  let formatted;
+  if (style) {
+    // a source file only has its long comments broken, whatever else it holds is left as written
+    const maxLength = loadConfig(options.configPath, filePath).maxLineLength;
+    const result = splitComments(content, maxLength, style);
+    result.stuck.forEach(item => console.warn(`⚠ No safe break: ${filePath}:${item.line}: ${item.text}`));
+    formatted = result.content;
+  } else {
+    formatted = formatMarkdown(content, options);
+  }
   const isModified = content !== formatted;
 
   if (options.check) {
@@ -47,7 +59,7 @@ export function processDirectory(dirPath, options = {}) {
 
     if (stat.isDirectory()) {
       modifiedCount += processDirectory(fullPath, options);
-    } else if (file.endsWith('.md')) {
+    } else if (file.endsWith('.md') || (options.comments && commentStyleOf(file))) {
       if (processFile(fullPath, options)) {
         modifiedCount++;
       }

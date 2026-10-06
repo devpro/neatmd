@@ -11,6 +11,7 @@ const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf-8'));
 const optionsSchema = {
   output: { type: 'string', short: 'o' },
   check: { type: 'boolean', short: 'c' },
+  comments: { type: 'boolean' },
   version: { type: 'boolean', short: 'V' },
   help: { type: 'boolean', short: 'h' },
 };
@@ -27,6 +28,7 @@ try {
     console.log('Usage: neatmd <file|directory> [options]');
     console.log('\nOptions:');
     console.log('  -c, --check          Check if files are formatted without writing');
+    console.log('      --comments       Also break long comments in source files of a directory');
     console.log('  -o, --output <file>  Specify output file (single file mode only)');
     console.log('  -V, --version        Show version number');
     console.log('  -h, --help           Show help menu');
@@ -59,7 +61,7 @@ try {
   ].find(fs.existsSync);
 
   const config = loadConfig(configPath);
-  const options = { ...config, check: values.check, output: values.output };
+  const options = { ...config, configPath, comments: values.comments, check: values.check, output: values.output };
 
   const modifiedCount = stat.isDirectory()
     ? processDirectory(targetPath, options)
@@ -70,12 +72,12 @@ try {
       console.error(`\n✖ Check failed: ${modifiedCount} file(s) need formatting.`);
       process.exit(1);
     } else {
-      console.log('✔ All Markdown files are properly formatted!');
+      console.log('✔ All files are properly formatted!');
       process.exit(0);
     }
   } else {
     if (modifiedCount === 0) {
-      console.log('All Markdown files are already neat!');
+      console.log('All files are already neat!');
     } else if (stat.isDirectory()) {
       console.log(`\nDone! Formatted ${modifiedCount} file(s).`);
     }

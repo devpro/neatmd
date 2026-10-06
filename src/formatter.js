@@ -1,3 +1,5 @@
+import { breakCandidates } from './comments.js';
+
 const DEFAULT_OPTIONS = {
   maxLineLength: 240,
 };
@@ -213,13 +215,15 @@ export function formatMarkdown(content, options = {}) {
         // splits only at punctuation if it's reasonably far into the line (e.g., > 50% of max length)
         if (bestPunctPos >= maxLineLength / 2) {
           splitPos = bestPunctPos;
+        } else if ((splitPos = findClauseBreak(remaining, maxLineLength, prefix.length)) !== -1) {
+          // B. breaks at a clause boundary, such as ", so" or ", which", before resorting to a plain word
         } else {
-          // B. fallbacks to standard word-wrap (last space before limit)
+          // C. fallbacks to standard word-wrap (last space before limit)
           const spacePos = substring.lastIndexOf(' ');
           if (spacePos > prefix.length) {
             splitPos = spacePos;
           } else {
-            // C. finds the *next* available space, if the word is longer than max length (e.g. long URL) force wraps if a single unbroken word exceeds max limit
+            // D. finds the *next* available space, if the word is longer than max length (e.g. long URL) force wraps if a single unbroken word exceeds max limit
             const nextSpace = remaining.indexOf(' ', Math.max(maxLineLength, prefix.length));
             splitPos = nextSpace !== -1 ? nextSpace : remaining.length;
           }
@@ -242,6 +246,27 @@ export function formatMarkdown(content, options = {}) {
   // a document holding no content stays empty, since that newline would read as a second line
   const formatted = output.join('\n').replace(/\n+$/, '');
   return formatted === '' ? '' : formatted + '\n';
+}
+
+// finds the latest clause boundary that keeps the line within the limit, and returns -1 when none sits in its second half
+// a boundary inside a link, inline code or quotes is not a boundary
+function findClauseBreak(line, maxLineLength, prefixLength) {
+  const links = [...line.matchAll(/!?\[[^\]]*\](?:\([^)]*\))?/g)].map(m => [m.index, m.index + m[0].length]);
+  const inLink = index => links.some(([from, to]) => index >= from && index < to);
+
+  const fitting = breakCandidates(line.slice(prefixLength))
+    .map(candidate => ({ ...candidate, at: candidate.at + prefixLength }))
+    .filter(candidate => {
+      const head = line.slice(0, candidate.at).trimEnd();
+      return head.length <= maxLineLength
+        && head.length >= maxLineLength / 2
+        && line.length - candidate.at >= 20
+        && !inLink(candidate.at - 2)
+        && !isInsideQuotesOrCode(line, candidate.at - 2);
+    })
+    .sort((a, b) => a.rank - b.rank || b.at - a.at);
+
+  return fitting.length > 0 ? fitting[0].at : -1;
 }
 
 function formatTable(tableLines) {

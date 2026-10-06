@@ -225,3 +225,27 @@ test('keeps marker only lines that carry no text', () => {
     assert.equal(formatMarkdown(input, 240), input);
   }
 });
+
+test('breaks an overlong sentence at a clause boundary rather than at a random word', () => {
+  const input = 'This sentence is long enough to need a break somewhere, and the clause boundary is the natural place to put it, rather than a random word.\n';
+  const expected = 'This sentence is long enough to need a break somewhere,\nand the clause boundary is the natural place to put it, rather than a random word.\n';
+
+  assert.equal(formatMarkdown(input, 90), expected);
+});
+
+test('never breaks a clause inside a link text, inline code or quotes', () => {
+  const input = 'Some words that lead up to the link [read this, and then that, so be it](https://example.com/a-long-target) and carry on after it.\n';
+  const result = formatMarkdown(input, 80);
+
+  // the commas inside the link text are not clause boundaries
+  for (const line of result.split('\n')) {
+    assert.ok(!/(this|that),$/.test(line), `clause break inside the link text: ${line}`);
+  }
+});
+
+test('falls back to the last space when a line has no clause boundary', () => {
+  const input = 'word '.repeat(30).trim() + '\n';
+  const result = formatMarkdown(input, 60);
+
+  assert.ok(result.split('\n').every(line => line.length <= 60));
+});

@@ -103,3 +103,64 @@ test('the command line rejects an output file for a directory target', () => {
     assert.equal(fs.existsSync(path.join(dir, 'out.md')), false);
   });
 });
+
+const longComment = '// the cache is cleared before the request starts; a stale entry would otherwise answer with the previous tenant data\n';
+
+test('splits the long comments of a source file named on the command line', () => {
+  withTempDir(dir => {
+    fs.writeFileSync(path.join(dir, '.editorconfig'), '[*.cs]\nmax_line_length = 80\n');
+    const source = path.join(dir, 'Cache.cs');
+    fs.writeFileSync(source, longComment + 'int x;\n');
+
+    execFileSync(process.execPath, [cliPath, source], { stdio: 'pipe', cwd: dir });
+
+    assert.equal(
+      fs.readFileSync(source, 'utf-8'),
+      '// the cache is cleared before the request starts;\n// a stale entry would otherwise answer with the previous tenant data\nint x;\n'
+    );
+  });
+});
+
+test('check mode reports a source file with a long comment and writes nothing', () => {
+  withTempDir(dir => {
+    fs.writeFileSync(path.join(dir, '.editorconfig'), '[*.cs]\nmax_line_length = 80\n');
+    const source = path.join(dir, 'Cache.cs');
+    fs.writeFileSync(source, longComment);
+
+    assert.throws(
+      () => execFileSync(process.execPath, [cliPath, '--check', source], { stdio: 'pipe', cwd: dir }),
+      error => error.status === 1
+    );
+    assert.equal(fs.readFileSync(source, 'utf-8'), longComment);
+  });
+});
+
+test('a directory run touches source files only with --comments', () => {
+  withTempDir(dir => {
+    fs.writeFileSync(path.join(dir, '.editorconfig'), '[*.cs]\nmax_line_length = 80\n');
+    const source = path.join(dir, 'Cache.cs');
+    fs.writeFileSync(source, longComment);
+
+    execFileSync(process.execPath, [cliPath, dir], { stdio: 'pipe', cwd: dir });
+    assert.equal(fs.readFileSync(source, 'utf-8'), longComment);
+
+    execFileSync(process.execPath, [cliPath, dir, '--comments'], { stdio: 'pipe', cwd: dir });
+    assert.notEqual(fs.readFileSync(source, 'utf-8'), longComment);
+  });
+});
+
+test('skips generated and vendored files in a directory run', () => {
+  withTempDir(dir => {
+    fs.writeFileSync(path.join(dir, '.editorconfig'), '[*]\nmax_line_length = 80\n');
+    fs.mkdirSync(path.join(dir, 'node_modules'));
+    const minified = path.join(dir, 'app.min.js');
+    const vendored = path.join(dir, 'node_modules', 'lib.js');
+    fs.writeFileSync(minified, longComment);
+    fs.writeFileSync(vendored, longComment);
+
+    execFileSync(process.execPath, [cliPath, dir, '--comments'], { stdio: 'pipe', cwd: dir });
+
+    assert.equal(fs.readFileSync(minified, 'utf-8'), longComment);
+    assert.equal(fs.readFileSync(vendored, 'utf-8'), longComment);
+  });
+});
