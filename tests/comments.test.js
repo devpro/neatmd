@@ -131,3 +131,19 @@ test('picks the comment style from the extension', () => {
   assert.equal(commentStyleOf('a/app.min.js'), null);
   assert.equal(commentStyleOf('a/app.js.map'), null);
 });
+
+test('splits a single line block comment and keeps the closer on the last line', () => {
+  const input = '  /* the grid keeps two columns on a phone, so the cards stay readable; a third column would shrink them below a thumb */\n';
+  const { content } = splitComments(input, 80, 'slash');
+
+  assert.equal(
+    content,
+    '  /* the grid keeps two columns on a phone, so the cards stay readable;\n     a third column would shrink them below a thumb */\n'
+  );
+});
+
+test('leaves a block comment closed in the middle of code alone', () => {
+  const input = `int x = /* ${'a, so b '.repeat(20)} */ 3;\n`;
+
+  assert.equal(splitComments(input, 80, 'slash').content, input);
+});

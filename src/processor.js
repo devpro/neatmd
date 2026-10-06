@@ -11,8 +11,21 @@ const DEFAULT_IGNORED_DIRS = new Set([
   'obj',
   'dist',
   'build',
-  '.next'
+  '.next',
+  'vendor',
+  'third_party'
 ]);
+
+// bin and obj are build output next to a .NET project, and source anywhere else, such as the bin of a Node package
+function isBuildOutput(dirPath, name) {
+  return ['bin', 'obj'].includes(name)
+    && fs.readdirSync(dirPath).some(entry => /\.(csproj|fsproj|vbproj|sln)$/.test(entry));
+}
+
+// a folder holding libraries copied into a web root is third party code
+function isVendored(dirPath, name) {
+  return name === 'lib' && path.basename(dirPath) === 'wwwroot';
+}
 
 export function processFile(filePath, options = {}) {
   const content = fs.readFileSync(filePath, 'utf-8');
@@ -52,7 +65,13 @@ export function processDirectory(dirPath, options = {}) {
   let modifiedCount = 0;
 
   for (const file of files) {
-    if (DEFAULT_IGNORED_DIRS.has(file)) continue;
+    if (options.comments) {
+      // a run over source files has to reach bin of a Node package, while a Markdown run keeps skipping it
+      if (DEFAULT_IGNORED_DIRS.has(file) && !['bin', 'obj'].includes(file)) continue;
+      if (isBuildOutput(dirPath, file) || isVendored(dirPath, file)) continue;
+    } else if (DEFAULT_IGNORED_DIRS.has(file)) {
+      continue;
+    }
 
     const fullPath = path.join(dirPath, file);
     const stat = fs.statSync(fullPath);

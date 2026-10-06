@@ -137,6 +137,11 @@ function readCommentLine(line, state, style) {
     const slash = /^(\s*\/\/\/?\s?)/.exec(line);
     if (slash) return { prefix: slash[1], cont: slash[1], text: line.slice(slash[1].length), suffix: '' };
 
+    const single = /^(\s*)(\/\*\s?)(.*?)(\s*\*\/)\s*$/.exec(line);
+    if (single && !/\*\/|\/\*/.test(single[3])) {
+      return { prefix: single[1] + single[2], cont: single[1] + '   ', text: single[3], suffix: single[4] };
+    }
+
     if (/^\s*\/\*(?!.*\*\/)/.test(line)) state.block = 'c';
     return null;
   }

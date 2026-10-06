@@ -1,0 +1,6 @@
+.grid {
+  /* the grid keeps two columns on a phone, so the cards stay readable;
+     a third column would shrink them below the size of a thumb and make the links hard to hit */
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+}

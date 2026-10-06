@@ -18,7 +18,9 @@ neatmd --comments .
 neatmd --comments --check .
 ```
 
-Generated and vendored files (`*.min.*`, `*.map`, `node_modules`, `bin`, `obj`, `dist`, `build`) are skipped.
+Source files are found in every folder of the tree.
+Generated and vendored code is skipped: `*.min.*`, `*.map`, `node_modules`, `vendor`, `third_party`, `dist`, `build`, `wwwroot/lib`, and `bin` and `obj` when a `.csproj`, `.fsproj`, `.vbproj` or `.sln` sits next to them.
+The `bin` folder of a Node package is source, and is processed.
 
 ## Supported files
 
@@ -49,3 +51,8 @@ In a list item the continuation is indented under the text.
 In a Razor `@* ... *@` comment the continuation is indented 3 spaces under `@*`, and `*@` stays on the last line.
 
 A line with no safe break is left whole and reported with its line number, to be split by hand.
+
+## Tests
+
+Each language has a pair of fixtures in `tests/fixtures/comments`: `sample.in.<ext>` is the input, `sample.out.<ext>` the expected result at a limit of 100.
+The tests also check that the text of the comments is unchanged, that no line outside a comment changes, and that a second pass changes nothing.

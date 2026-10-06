@@ -164,3 +164,51 @@ test('skips generated and vendored files in a directory run', () => {
     assert.equal(fs.readFileSync(vendored, 'utf-8'), longComment);
   });
 });
+
+function writeTree(dir, files) {
+  for (const [name, content] of Object.entries(files)) {
+    const full = path.join(dir, name);
+    fs.mkdirSync(path.dirname(full), { recursive: true });
+    fs.writeFileSync(full, content);
+  }
+}
+
+test('a directory run reaches source files in any folder and skips vendored code', () => {
+  withTempDir(dir => {
+    writeTree(dir, {
+      '.editorconfig': '[*]\nmax_line_length = 80\n',
+      'src/a.js': longComment,
+      'wwwroot/js/site.js': longComment,
+      'wwwroot/lib/jquery/jquery.js': longComment,
+      'vendor/x.js': longComment,
+      'third_party/y.js': longComment
+    });
+
+    execFileSync(process.execPath, [cliPath, dir, '--comments'], { stdio: 'pipe', cwd: dir });
+
+    assert.notEqual(fs.readFileSync(path.join(dir, 'src/a.js'), 'utf-8'), longComment);
+    assert.notEqual(fs.readFileSync(path.join(dir, 'wwwroot/js/site.js'), 'utf-8'), longComment);
+    assert.equal(fs.readFileSync(path.join(dir, 'wwwroot/lib/jquery/jquery.js'), 'utf-8'), longComment);
+    assert.equal(fs.readFileSync(path.join(dir, 'vendor/x.js'), 'utf-8'), longComment);
+    assert.equal(fs.readFileSync(path.join(dir, 'third_party/y.js'), 'utf-8'), longComment);
+  });
+});
+
+test('bin is source in a Node project and build output next to a .NET project', () => {
+  withTempDir(dir => {
+    writeTree(dir, {
+      '.editorconfig': '[*]\nmax_line_length = 80\n',
+      'node/package.json': '{}',
+      'node/bin/cli.js': longComment,
+      'dotnet/App.csproj': '<Project/>',
+      'dotnet/bin/Debug/gen.cs': longComment,
+      'dotnet/obj/gen.cs': longComment
+    });
+
+    execFileSync(process.execPath, [cliPath, dir, '--comments'], { stdio: 'pipe', cwd: dir });
+
+    assert.notEqual(fs.readFileSync(path.join(dir, 'node/bin/cli.js'), 'utf-8'), longComment);
+    assert.equal(fs.readFileSync(path.join(dir, 'dotnet/bin/Debug/gen.cs'), 'utf-8'), longComment);
+    assert.equal(fs.readFileSync(path.join(dir, 'dotnet/obj/gen.cs'), 'utf-8'), longComment);
+  });
+});
