@@ -21,6 +21,7 @@ neatmd --comments --check .
 Source files are found in every folder of the tree.
 Generated and vendored code is skipped: `*.min.*`, `*.map`, `node_modules`, `vendor`, `third_party`, `dist`, `build`, `wwwroot/lib`, and `bin` and `obj` when a `.csproj`, `.fsproj`, `.vbproj` or `.sln` sits next to them.
 The `bin` folder of a Node package is source, and is processed.
+Whatever `.gitignore` lists is skipped too, in Markdown runs as well, as long as the folder is inside a git repository and `git` is installed.
 
 ## Supported files
 

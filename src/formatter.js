@@ -316,9 +316,8 @@ function formatTable(tableLines) {
         if (isFirst && !row.hasLeadingPipe) {
           dashCount = colWidths[colIndex] + 1;
         } else if (isLast && !row.hasTrailingPipe) {
-          // matches header length for the open-ended last column
-          const headerLength = parsedRows[0].cells[colIndex] ? parsedRows[0].cells[colIndex].length : 3;
-          dashCount = headerLength + 1;
+          // follows the longest value of the open-ended last column, as the other columns do
+          dashCount = colWidths[colIndex] + 1;
         } else {
           dashCount = colWidths[colIndex] + 2;
         }

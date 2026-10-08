@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { execFileSync } from 'node:child_process';
 import { formatMarkdown } from './formatter.js';
 import { loadConfig } from './config.js';
 import { splitComments, commentStyleOf } from './comments.js';
@@ -25,6 +26,23 @@ function isBuildOutput(dirPath, name) {
 // a folder holding libraries copied into a web root is third party code
 function isVendored(dirPath, name) {
   return name === 'lib' && path.basename(dirPath) === 'wwwroot';
+}
+
+// asks git once per folder, so the rules of every nested .gitignore and of the global excludes apply
+// outside a repository, or without git installed, nothing is ignored
+function gitIgnoredEntries(dirPath, names) {
+  if (names.length === 0) return new Set();
+  try {
+    const output = execFileSync('git', ['check-ignore', '-z', '--stdin'], {
+      cwd: dirPath,
+      input: names.join('\0') + '\0',
+      stdio: ['pipe', 'pipe', 'ignore'],
+      maxBuffer: 64 * 1024 * 1024
+    });
+    return new Set(output.toString().split('\0').filter(Boolean));
+  } catch {
+    return new Set();
+  }
 }
 
 export function processFile(filePath, options = {}) {
@@ -61,7 +79,9 @@ export function processFile(filePath, options = {}) {
 }
 
 export function processDirectory(dirPath, options = {}) {
-  const files = fs.readdirSync(dirPath);
+  const entries = fs.readdirSync(dirPath);
+  const ignored = gitIgnoredEntries(dirPath, entries);
+  const files = entries.filter(entry => !ignored.has(entry));
   let modifiedCount = 0;
 
   for (const file of files) {

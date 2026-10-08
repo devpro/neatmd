@@ -21,7 +21,7 @@ with no `ExtraFields` supplied they still fill one row identically to the old fi
 instead of wrapping to a second row on desktop, while `col-6` still stacks two-per-row on mobile like the others.
 
 Project                  | Depends on                                             | Responsibility
--------------------------|--------------------------------------------------------|---------------
+-------------------------|--------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------
 `Common.System`          | —                                                      | Cross-cutting primitives shared by every layer: `IHasId`, `IHasIdAndOwnerId`, `PagedRequest`, `PagedResult<T>`.
 `Domain`                 | `Common.System`                                        | Business models (`*Model` in `Models/`) and repository interfaces (`I*Repository` in `Repositories/`). No persistence or web concerns.
 `Infrastructure.MongoDb` | `Domain`                                               | MongoDB implementation: BSON `Entities/` and `Repositories/` implementing the `Domain` interfaces.

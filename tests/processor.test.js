@@ -212,3 +212,41 @@ test('bin is source in a Node project and build output next to a .NET project', 
     assert.equal(fs.readFileSync(path.join(dir, 'dotnet/obj/gen.cs'), 'utf-8'), longComment);
   });
 });
+
+test('a directory run skips what .gitignore lists, and still processes tracked files', () => {
+  withTempDir(dir => {
+    writeTree(dir, {
+      '.editorconfig': '[*]\nmax_line_length = 80\n',
+      '.gitignore': 'generated/\n*.bundle.js\n',
+      'src/a.js': longComment,
+      'generated/b.js': longComment,
+      'src/app.bundle.js': longComment,
+      'generated/notes.md': fs.readFileSync(needsFormatting, 'utf-8')
+    });
+    execFileSync('git', ['init', '-q'], { cwd: dir });
+
+    execFileSync(process.execPath, [cliPath, dir, '--comments'], { stdio: 'pipe', cwd: dir });
+
+    assert.notEqual(fs.readFileSync(path.join(dir, 'src/a.js'), 'utf-8'), longComment);
+    assert.equal(fs.readFileSync(path.join(dir, 'generated/b.js'), 'utf-8'), longComment);
+    assert.equal(fs.readFileSync(path.join(dir, 'src/app.bundle.js'), 'utf-8'), longComment);
+    assert.equal(
+      fs.readFileSync(path.join(dir, 'generated/notes.md'), 'utf-8'),
+      fs.readFileSync(needsFormatting, 'utf-8')
+    );
+  });
+});
+
+test('a directory outside a git repository has nothing ignored', () => {
+  withTempDir(dir => {
+    writeTree(dir, {
+      '.editorconfig': '[*]\nmax_line_length = 80\n',
+      '.gitignore': 'generated/\n',
+      'generated/b.js': longComment
+    });
+
+    execFileSync(process.execPath, [cliPath, dir, '--comments'], { stdio: 'pipe', cwd: dir });
+
+    assert.notEqual(fs.readFileSync(path.join(dir, 'generated/b.js'), 'utf-8'), longComment);
+  });
+});

@@ -183,6 +183,13 @@ test('keeps the indentation of a table nested in a list item', () => {
   assert.equal(formatMarkdown(input, 240), expected);
 });
 
+test('sizes the separator of an open-ended last column on its longest value', () => {
+  const input = 'Key | Value\n-|-\na | a much longer value\n';
+  const expected = 'Key | Value\n----|--------------------\na   | a much longer value\n';
+
+  assert.equal(formatMarkdown(input, 240), expected);
+});
+
 test('stops a table at the first line that opens another block', () => {
   const table = 'Key | Value\n----|------\na   | b\n';
 
