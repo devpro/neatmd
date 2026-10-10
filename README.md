@@ -49,7 +49,7 @@ Flag         | Short | Description                                              
 -------------|-------|------------------------------------------------------------------------------------|--------
 `--check`    | `-c`  | Verify formatting and exit with code 1 if unformatted                              | `false`
 `--comments` |       | Also break long comments in source files, see [docs/comments.md](docs/comments.md) | `false`
-`--verbose`  | `-v`  | Output detailed progress logs                                                      | `false`
+`--output`   | `-o`  | Write the result to a file instead of in place, single file mode only              | none
 `--version`  | `-V`  | Print current version                                                              | none
 `--help`     | `-h`  | Display help menu                                                                  | none
 
