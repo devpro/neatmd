@@ -1,14 +1,16 @@
 # Breaking long comments
 
 `neatmd` also breaks comment lines longer than the configured length in source files, and changes nothing else.
-Code, string literals and trailing comments after code are never touched.
+
+> [!IMPORTANT]
+> Code, string literals and trailing comments after code are never touched.
 
 ## Usage
 
 A source file named on the command line is processed on its own:
 
 ```bash
-neatmd src/Cache.cs
+neatmd src/MyApp/Cache.cs
 ```
 
 A directory run only touches Markdown, unless `--comments` is given:
@@ -18,18 +20,21 @@ neatmd --comments .
 neatmd --comments --check .
 ```
 
-Source files are found in every folder of the tree.
-Generated and vendored code is skipped: `*.min.*`, `*.map`, `node_modules`, `vendor`, `third_party`, `dist`, `build`, `wwwroot/lib`, and `bin` and `obj` when a `.csproj`, `.fsproj`, `.vbproj` or `.sln` sits next to them.
-The `bin` folder of a Node package is source, and is processed.
-Whatever `.gitignore` lists is skipped too, in Markdown runs as well, as long as the folder is inside a git repository and `git` is installed.
+Rules:
+
+- Source files are found in every folder of the tree.
+- Generated and vendored code is skipped: `*.min.*`, `*.map`, `node_modules`, `vendor`, `third_party`, `dist`, `build`, `wwwroot/lib`,
+  and `bin` and `obj` when a `.csproj`, `.fsproj`, `.vbproj` or `.sln` sits next to them.
+- The `bin` folder of a Node package is source, and is processed.
+- Whatever `.gitignore` lists is skipped too, in Markdown runs as well, as long as the folder is inside a git repository and `git` is installed.
 
 ## Supported files
 
-| Extensions                                                      | Comment forms                   |
-|-----------------------------------------------------------------|---------------------------------|
-| `.cs` `.js` `.mjs` `.cjs` `.ts` `.tsx` `.jsx` `.css` `.scss`   | `//`, `///`, `/* ... */`        |
-| `.razor` `.cshtml`                                              | the above, and `@* ... *@`      |
-| `.sh` `.yml` `.yaml`                                            | `#`, a shebang is left alone    |
+Extensions                                                   | Comment forms
+-------------------------------------------------------------|-----------------------------
+`.cs` `.js` `.mjs` `.cjs` `.ts` `.tsx` `.jsx` `.css` `.scss` | `//`, `///`, `/* ... */`
+`.razor` `.cshtml`                                           | the above, and `@* ... *@`
+`.sh` `.yml` `.yaml`                                         | `#`, a shebang is left alone
 
 ## Line length
 
@@ -44,7 +49,7 @@ max_line_length = 180
 ## How a line is broken
 
 A line is broken at the most natural clause boundary that keeps the first part within the limit.
-In order of preference: after `; `, after `: `, before a conjunction such as `, so`, `, and`, `, but` or `, which`, and after any other `, `.
+In order of preference: after `;`, after `:`, before a conjunction such as `, so`, `, and`, `, but` or `, which`, and after any other `,`.
 A break never falls inside backticks, double quotes, parentheses, an angle bracket tag, or an inline element such as `<c>...</c>`.
 
 Continuation lines keep the prefix of the comment.
@@ -55,5 +60,6 @@ A line with no safe break is left whole and reported with its line number, to be
 
 ## Tests
 
-Each language has a pair of fixtures in `tests/fixtures/comments`: `sample.in.<ext>` is the input, `sample.out.<ext>` the expected result at a limit of 100.
+Each language has a pair of fixtures in `tests/fixtures/comments`:
+`sample.in.<ext>` is the input, `sample.out.<ext>` the expected result at a limit of 100.
 The tests also check that the text of the comments is unchanged, that no line outside a comment changes, and that a second pass changes nothing.
