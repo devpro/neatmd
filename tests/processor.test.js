@@ -250,3 +250,51 @@ test('a directory outside a git repository has nothing ignored', () => {
     assert.notEqual(fs.readFileSync(path.join(dir, 'generated/b.js'), 'utf-8'), longComment);
   });
 });
+
+test('formats every file given as an argument', () => {
+  withTempDir(dir => {
+    const names = ['a.md', 'b.md', 'c.md'];
+    names.forEach(name => fs.writeFileSync(path.join(dir, name), 'One sentence. Another sentence.\n'));
+
+    execFileSync(process.execPath, [cliPath, ...names], { stdio: 'pipe', cwd: dir });
+
+    for (const name of names) {
+      assert.equal(fs.readFileSync(path.join(dir, name), 'utf-8'), 'One sentence.\nAnother sentence.\n');
+    }
+  });
+});
+
+test('--check fails when any of several files needs formatting', () => {
+  withTempDir(dir => {
+    fs.writeFileSync(path.join(dir, 'neat.md'), 'One sentence.\n');
+    fs.writeFileSync(path.join(dir, 'messy.md'), 'One sentence. Another sentence.\n');
+
+    assert.throws(
+      () => execFileSync(process.execPath, [cliPath, '--check', 'neat.md', 'messy.md'], { stdio: 'pipe', cwd: dir }),
+      error => error.status === 1 && error.stdout.toString().includes('messy.md')
+    );
+  });
+});
+
+test('reports a missing path among several arguments and exits non-zero', () => {
+  withTempDir(dir => {
+    fs.writeFileSync(path.join(dir, 'a.md'), 'One sentence.\n');
+
+    assert.throws(
+      () => execFileSync(process.execPath, [cliPath, 'a.md', 'missing.md'], { stdio: 'pipe', cwd: dir }),
+      error => error.status === 1 && error.stderr.toString().includes('missing.md')
+    );
+  });
+});
+
+test('--output refuses several files', () => {
+  withTempDir(dir => {
+    fs.writeFileSync(path.join(dir, 'a.md'), 'One sentence.\n');
+    fs.writeFileSync(path.join(dir, 'b.md'), 'One sentence.\n');
+
+    assert.throws(
+      () => execFileSync(process.execPath, [cliPath, 'a.md', 'b.md', '-o', 'out.md'], { stdio: 'pipe', cwd: dir }),
+      error => error.status === 1
+    );
+  });
+});

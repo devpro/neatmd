@@ -1,8 +1,6 @@
 Option | Meaning
 -|-
 `-c` | Check only
-- A list item right after a table, holding a | pipe, is not a row.
-- Second item.
 
 Option | Meaning
 -|-

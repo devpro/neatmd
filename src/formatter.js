@@ -71,6 +71,11 @@ export function formatMarkdown(content, options = {}) {
     return /^\s*(#|>|(?:[-*+]|\d+[.)])\s|```|~~~)/.test(line);
   }
 
+  // a row may open on a list marker, such as "1. The cluster | runs", so only the blocks that cannot be a cell end it
+  function endsTable(line) {
+    return /^\s*(#|>|```|~~~)/.test(line);
+  }
+
   let i = 0;
 
   // copies front matter verbatim, which is metadata rather than Markdown
@@ -109,7 +114,7 @@ export function formatMarkdown(content, options = {}) {
       // takes the header and the separator, then every row until a blank line or another block
       let tableLines = [lines[i], lines[i + 1]];
       i += 2;
-      while (i < lines.length && lines[i].includes('|') && !startsNewBlock(lines[i])) {
+      while (i < lines.length && lines[i].includes('|') && !endsTable(lines[i])) {
         tableLines.push(lines[i]);
         i++;
       }
@@ -296,6 +301,17 @@ function formatTable(tableLines) {
       hasTrailingPipe
     };
   });
+
+  // an empty first cell padded to the width of its column would open the row with four spaces or more, which Markdown reads as an indented code block
+  // the row has no leading pipe to stop that, so a placeholder takes the cell
+  if (!tableHasLeadingPipe) {
+    const firstWidth = Math.max(...parsedRows.filter((row, index) => index !== 1).map(row => row.cells[0].length));
+    if (firstWidth >= 4) {
+      parsedRows.forEach((row, index) => {
+        if (index > 1 && row.cells[0] === '') row.cells[0] = '&nbsp;';
+      });
+    }
+  }
 
   const colCount = Math.max(...parsedRows.map(r => r.cells.length));
   const colWidths = new Array(colCount).fill(0);

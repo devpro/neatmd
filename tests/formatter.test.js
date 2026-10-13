@@ -195,8 +195,6 @@ test('stops a table at the first line that opens another block', () => {
 
   // a table is broken by the beginning of another block level structure, so these lines are never table rows
   const interrupters = [
-    '- item with a | pipe',
-    '1. item with a | pipe',
     '# Heading with a | pipe',
     '> quote with a | pipe',
     '```text | fence'
@@ -206,6 +204,21 @@ test('stops a table at the first line that opens another block', () => {
     const result = formatMarkdown(table + interrupter + '\n', 240);
     assert.equal(result, table + interrupter + '\n');
   }
+});
+
+test('keeps a row opening on a list marker in the table', () => {
+  const input = 'Step | Meaning\n-|-\n1. The cluster | runs\n- The identity | proves\n';
+  const expected = 'Step           | Meaning\n---------------|--------\n1. The cluster | runs\n- The identity | proves\n';
+
+  assert.equal(formatMarkdown(input, 240), expected);
+});
+
+test('keeps a row with an empty first cell from reading as an indented code block', () => {
+  const input = 'Name | Value\n-|-\nlonger name | a\n | b\n';
+  const result = formatMarkdown(input, 240).split('\n');
+
+  assert.ok(result.every(line => !/^ {4}/.test(line)), result.join('\n'));
+  assert.equal(result[3], '&nbsp;      | b');
 });
 
 test('does not open a table on a line that belongs to another block', () => {

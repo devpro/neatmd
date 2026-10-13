@@ -25,7 +25,7 @@ try {
   }
 
   if (values.help || positionals.length === 0) {
-    console.log('Usage: neatmd <file|directory> [options]');
+    console.log('Usage: neatmd <file|directory>... [options]');
     console.log('\nOptions:');
     console.log('  -c, --check          Check if files are formatted without writing');
     console.log('      --comments       Also break long comments in source files of a directory');
@@ -40,32 +40,42 @@ try {
     process.exit(1);
   }
 
-  const targetPath = path.resolve(process.cwd(), positionals[0]);
+  const targets = positionals.map(positional => {
+    const targetPath = path.resolve(process.cwd(), positional);
 
-  if (!fs.existsSync(targetPath)) {
-    console.error(`✖ Error: Path does not exist "${positionals[0]}"`);
-    process.exit(1);
-  }
+    if (!fs.existsSync(targetPath)) {
+      console.error(`✖ Error: Path does not exist "${positional}"`);
+      process.exit(1);
+    }
 
-  const stat = fs.statSync(targetPath);
+    return { targetPath, isDirectory: fs.statSync(targetPath).isDirectory() };
+  });
 
-  if (values.output && stat.isDirectory()) {
+  if (values.output && (targets.length > 1 || targets[0].isDirectory)) {
     console.error('✖ Error: --output only applies to a single file.');
     process.exit(1);
   }
 
-  const targetDir = stat.isDirectory() ? targetPath : path.dirname(targetPath);
-  const configPath = [
-    path.join(targetDir, '.editorconfig'),
-    path.join(process.cwd(), '.editorconfig')
-  ].find(fs.existsSync);
+  let modifiedCount = 0;
+  let hasDirectory = false;
 
-  const config = loadConfig(configPath);
-  const options = { ...config, configPath, comments: values.comments, check: values.check, output: values.output };
+  for (const { targetPath, isDirectory } of targets) {
+    const targetDir = isDirectory ? targetPath : path.dirname(targetPath);
+    const configPath = [
+      path.join(targetDir, '.editorconfig'),
+      path.join(process.cwd(), '.editorconfig')
+    ].find(fs.existsSync);
 
-  const modifiedCount = stat.isDirectory()
-    ? processDirectory(targetPath, options)
-    : (processFile(targetPath, options) ? 1 : 0);
+    const config = loadConfig(configPath);
+    const options = { ...config, configPath, comments: values.comments, check: values.check, output: values.output };
+
+    if (isDirectory) {
+      hasDirectory = true;
+      modifiedCount += processDirectory(targetPath, options);
+    } else if (processFile(targetPath, options)) {
+      modifiedCount++;
+    }
+  }
 
   if (values.check) {
     if (modifiedCount > 0) {
@@ -78,7 +88,7 @@ try {
   } else {
     if (modifiedCount === 0) {
       console.log('All files are already neat!');
-    } else if (stat.isDirectory()) {
+    } else if (hasDirectory || targets.length > 1) {
       console.log(`\nDone! Formatted ${modifiedCount} file(s).`);
     }
   }
