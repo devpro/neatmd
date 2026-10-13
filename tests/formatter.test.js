@@ -256,3 +256,32 @@ test('falls back to the last space when a line has no clause boundary', () => {
 
   assert.ok(result.split('\n').every(line => line.length <= 60));
 });
+
+test('keeps an escaped pipe inside its table cell', () => {
+  const input = 'Command | Does\n-|-\n`a \\| b` | pipes\n`c` | plain\n';
+  const expected = 'Command  | Does\n---------|------\n`a \\| b` | pipes\n`c`      | plain\n';
+
+  assert.equal(formatMarkdown(input, 240), expected);
+});
+
+test('reads a leading empty header cell of a table with no leading pipe as a cell, not as indentation', () => {
+  const input = '     | SDK | Runtime\n-----|-----|--------\nUsed | A   | B\n';
+  const expected = '     | SDK | Runtime\n-----|-----|--------\nUsed | A   | B\n';
+
+  assert.equal(formatMarkdown(input, 240), expected);
+});
+
+test('never breaks a line inside a link text at a space', () => {
+  const link = '[dynamic inventory](https://example.com/inventory_guide/intro_dynamic_inventory.html)';
+  const input = `- Lead words that fill most of the line before the link ${link}.\n`;
+  const result = formatMarkdown(input, 80);
+
+  assert.ok(result.includes(link), `link was cut:\n${result}`);
+});
+
+test('never splits a sentence inside a link text', () => {
+  const link = '[MinIO images gone? Best alternatives](https://example.com/minio-images-gone)';
+  const input = `> The story: ${link}, by someone.\n`;
+
+  assert.equal(formatMarkdown(input, 240), input);
+});

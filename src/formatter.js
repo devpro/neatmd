@@ -170,7 +170,7 @@ export function formatMarkdown(content, options = {}) {
         currentSentence = rawSentences[k];
         currentPos += rawSentences[k].length;
       } else {
-        if (isInsideQuotesOrCode(textToProcess, currentPos)) {
+        if (isInsideQuotesOrCode(textToProcess, currentPos) || isInsideLink(textToProcess, currentPos)) {
           currentSentence += ' ' + rawSentences[k];
         } else {
           sentences.push(currentSentence);
@@ -203,7 +203,7 @@ export function formatMarkdown(content, options = {}) {
             const splitAt = p === ' - ' ? pos + 2 : pos + 1;
             if (splitAt > prefix.length && splitAt > bestPunctPos) {
               // asks about the whole line, so a quoted phrase reaching past the limit is still seen as a pair
-              if (!isInsideQuotesOrCode(remaining, pos)) {
+              if (!isInsideQuotesOrCode(remaining, pos) && !isInsideLink(remaining, pos)) {
                 bestPunctPos = splitAt;
                 break;
               }
@@ -219,12 +219,19 @@ export function formatMarkdown(content, options = {}) {
           // B. breaks at a clause boundary, such as ", so" or ", which", before resorting to a plain word
         } else {
           // C. fallbacks to standard word-wrap (last space before limit)
-          const spacePos = substring.lastIndexOf(' ');
+          // a space inside a link is skipped, since the link has to stay on one line
+          let spacePos = substring.lastIndexOf(' ');
+          while (spacePos > prefix.length && isInsideLink(remaining, spacePos)) {
+            spacePos = substring.lastIndexOf(' ', spacePos - 1);
+          }
           if (spacePos > prefix.length) {
             splitPos = spacePos;
           } else {
             // D. finds the *next* available space, if the word is longer than max length (e.g. long URL) force wraps if a single unbroken word exceeds max limit
-            const nextSpace = remaining.indexOf(' ', Math.max(maxLineLength, prefix.length));
+            let nextSpace = remaining.indexOf(' ', Math.max(maxLineLength, prefix.length));
+            while (nextSpace !== -1 && isInsideLink(remaining, nextSpace)) {
+              nextSpace = remaining.indexOf(' ', nextSpace + 1);
+            }
             splitPos = nextSpace !== -1 ? nextSpace : remaining.length;
           }
         }
@@ -251,9 +258,6 @@ export function formatMarkdown(content, options = {}) {
 // finds the latest clause boundary that keeps the line within the limit, and returns -1 when none sits in its second half
 // a boundary inside a link, inline code or quotes is not a boundary
 function findClauseBreak(line, maxLineLength, prefixLength) {
-  const links = [...line.matchAll(/!?\[[^\]]*\](?:\([^)]*\))?/g)].map(m => [m.index, m.index + m[0].length]);
-  const inLink = index => links.some(([from, to]) => index >= from && index < to);
-
   const fitting = breakCandidates(line.slice(prefixLength))
     .map(candidate => ({ ...candidate, at: candidate.at + prefixLength }))
     .filter(candidate => {
@@ -261,7 +265,7 @@ function findClauseBreak(line, maxLineLength, prefixLength) {
       return head.length <= maxLineLength
         && head.length >= maxLineLength / 2
         && line.length - candidate.at >= 20
-        && !inLink(candidate.at - 2)
+        && !isInsideLink(line, candidate.at - 2)
         && !isInsideQuotesOrCode(line, candidate.at - 2);
     })
     .sort((a, b) => a.rank - b.rank || b.at - a.at);
@@ -271,18 +275,23 @@ function findClauseBreak(line, maxLineLength, prefixLength) {
 
 function formatTable(tableLines) {
   // a table nested in a list item is held there by its indentation, which the header carries for the whole table
-  const indent = tableLines[0].match(/^\s*/)[0];
+  // the least indented line gives it: a header opening on an empty cell is indented by that cell
+  const indent = tableLines.map(line => line.match(/^\s*/)[0]).reduce((a, b) => (b.length < a.length ? b : a));
+
+  // the separator tells whether rows carry a leading pipe, so that a pipe opening a row of a table without one is an empty cell
+  const tableHasLeadingPipe = tableLines[1].trim().startsWith('|');
 
   const parsedRows = tableLines.map(line => {
     let trimmed = line.trim();
-    let hasLeadingPipe = trimmed.startsWith('|');
-    let hasTrailingPipe = trimmed.endsWith('|');
+    let hasLeadingPipe = tableHasLeadingPipe && trimmed.startsWith('|');
+    let hasTrailingPipe = /(?<!\\)\|$/.test(trimmed);
 
     if (hasLeadingPipe) trimmed = trimmed.substring(1);
     if (hasTrailingPipe) trimmed = trimmed.substring(0, trimmed.length - 1);
 
     return {
-      cells: trimmed.split('|').map(c => c.trim()),
+      // a pipe escaped with a backslash belongs to the cell, inline code or not
+      cells: trimmed.split(/(?<!\\)\|/).map(c => c.trim()),
       hasLeadingPipe,
       hasTrailingPipe
     };
@@ -398,4 +407,18 @@ function mapProtectedPositions(text) {
 function isInsideQuotesOrCode(text, index) {
   const positions = mapProtectedPositions(text);
   return index >= 0 && index < positions.length && positions[index] === 1;
+}
+
+const LINK = /!?\[(?:[^\[\]]|!?\[[^\]]*\](?:\([^)]*\))?)*\](?:\([^)]*\))?/g;
+
+let linkedText = null;
+let linkSpans = null;
+
+// a link is one unit: neither its text nor its target is a place to end a line or a sentence
+function isInsideLink(text, index) {
+  if (text !== linkedText) {
+    linkedText = text;
+    linkSpans = [...text.matchAll(LINK)].map(m => [m.index, m.index + m[0].length]);
+  }
+  return linkSpans.some(([from, to]) => index >= from && index < to);
 }
