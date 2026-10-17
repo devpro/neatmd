@@ -381,3 +381,20 @@ test('reads an inline tag inside a paragraph as text, while a block tag still op
   );
   assert.equal(formatMarkdown('Intro.\n<div>\nOne. Two\n</div>\n', 240), 'Intro.\n<div>\nOne. Two\n</div>\n');
 });
+
+test('backs up a word or two rather than leave a few characters alone on the last line', () => {
+  const input = 'aaaa '.repeat(12) + 'end.\n';
+
+  assert.equal(formatMarkdown(input, 60), 'aaaa '.repeat(8).trim() + '\n' + 'aaaa aaaa aaaa aaaa end.\n');
+});
+
+test('wraps before inline code or emphasis rather than inside it', () => {
+  assert.equal(
+    formatMarkdown('Run the command ' + 'x'.repeat(20) + ' then `mysql -h host -P port -u root -p secret` to connect.\n', 60),
+    'Run the command ' + 'x'.repeat(20) + ' then\n`mysql -h host -P port -u root -p secret` to connect.\n'
+  );
+  assert.equal(
+    formatMarkdown('Some words that lead to the date written _April 12, 2019_\n', 50),
+    'Some words that lead to the date\nwritten _April 12, 2019_\n'
+  );
+});

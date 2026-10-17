@@ -1,33 +1,12 @@
 import { breakCandidates } from './comments.js';
+import { abbreviationAlternatives } from './abbreviations.js';
 
 const DEFAULT_OPTIONS = {
   maxLineLength: 240,
 };
 
-// abbreviations that end on a full stop without ending a sentence single letters,
-// which cover "e.g.", "i.e." and initials, are handled by their own rule below a word that also stands on its own, such as "no", stays out: "the answer is no." does end a sentence
-const ABBREVIATIONS = [
-  'al',
-  'approx',
-  'cf',
-  'Dr',
-  'etc',
-  'fig',
-  'Inc',
-  'Ltd',
-  'Mr',
-  'Mrs',
-  'Ms',
-  'Prof',
-  'ref',
-  'vs',
-  'ep'
-];
-
-// each abbreviation is matched as written and capitalised, since it can open a sentence
-const abbreviationAlternatives = [...new Set(
-  ABBREVIATIONS.flatMap(word => [word, word[0].toUpperCase() + word.slice(1)])
-)].join('|');
+// the shortest last line a word wrap leaves, the same floor a clause break keeps
+const MIN_TAIL = 20;
 
 // uses hardened semantic line breaks
 // 1. (?<!\b(?:etc|ref|...)\.) -> Ignore known abbreviations
@@ -276,10 +255,26 @@ export function formatMarkdown(content, options = {}) {
         } else {
           // C. fallbacks to standard word-wrap (last space before limit)
           // a space inside a link is skipped, since the link has to stay on one line
-          let spacePos = substring.lastIndexOf(' ');
-          while (spacePos > prefix.length && (isInsideLink(remaining, spacePos) || opensBlock(remaining.substring(spacePos)))) {
-            spacePos = substring.lastIndexOf(' ', spacePos - 1);
+          const allowed = pos => !isInsideLink(remaining, pos) && !opensBlock(remaining.substring(pos));
+          // a break inside inline code or emphasis is valid but reads badly, so it is avoided while a space before it keeps the line half full
+          const preferred = pos => allowed(pos) && !isInsideCodeOrEmphasis(remaining, pos);
+          const lastSpace = (accepts, from = substring.length) => {
+            let pos = substring.lastIndexOf(' ', from);
+            while (pos > prefix.length && !accepts(pos)) pos = substring.lastIndexOf(' ', pos - 1);
+            return pos > prefix.length ? pos : -1;
+          };
+
+          let spacePos = lastSpace(preferred);
+          if (spacePos < maxLineLength / 2) spacePos = lastSpace(allowed);
+
+          // a last line of a word or two is avoided by moving a few words down, as long as the line above stays half full
+          const tailLength = pos => remaining.length - pos - 1;
+          if (spacePos !== -1 && tailLength(spacePos) < MIN_TAIL) {
+            let earlier = spacePos;
+            while (earlier !== -1 && tailLength(earlier) < MIN_TAIL) earlier = lastSpace(preferred, earlier - 1);
+            if (earlier >= maxLineLength / 2) spacePos = earlier;
           }
+
           if (spacePos > prefix.length) {
             splitPos = spacePos;
           } else {
@@ -322,7 +317,7 @@ function findClauseBreak(line, maxLineLength, prefixLength) {
       const head = line.slice(0, candidate.at).trimEnd();
       return head.length <= maxLineLength
         && head.length >= maxLineLength / 2
-        && line.length - candidate.at >= 20
+        && line.length - candidate.at >= MIN_TAIL
         && !opensBlock(line.slice(candidate.at))
         && !isInsideLink(line, candidate.at - 2)
         && !isInsideQuotesOrCode(line, candidate.at - 2);
@@ -496,4 +491,17 @@ function isInsideLink(text, index) {
     linkSpans = [...text.matchAll(LINK)].map(m => [m.index, m.index + m[0].length]);
   }
   return linkSpans.some(([from, to]) => index >= from && index < to);
+}
+
+const INLINE_SPAN = /(`+)[\s\S]*?\1|(?<![\w*])(\*\*?)(?=\S)[^*]+?(?<=\S)\2(?![\w*])|(?<![\w_])(__?)(?=\S)[^_]+?(?<=\S)\3(?![\w_])/g;
+
+let spannedText = null;
+let inlineSpans = null;
+
+function isInsideCodeOrEmphasis(text, index) {
+  if (text !== spannedText) {
+    spannedText = text;
+    inlineSpans = [...text.matchAll(INLINE_SPAN)].map(m => [m.index, m.index + m[0].length]);
+  }
+  return inlineSpans.some(([from, to]) => index > from && index < to);
 }

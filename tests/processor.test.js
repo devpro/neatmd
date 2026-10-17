@@ -330,3 +330,19 @@ test('a directory run applies a nested .editorconfig to its own folder only', ()
     assert.notEqual(fs.readFileSync(path.join(dir, 'sub/b.md'), 'utf-8'), longSentence);
   });
 });
+
+test('skips the Scripts folder of a .NET project, where its libraries are copied', () => {
+  withTempDir(dir => {
+    writeTree(dir, {
+      '.editorconfig': '[*]\nmax_line_length = 80\n',
+      'web/App.csproj': '<Project />\n',
+      'web/Scripts/jquery-2.1.3.js': longComment,
+      'node/Scripts/build.js': longComment
+    });
+
+    execFileSync(process.execPath, [cliPath, dir, '--comments'], { stdio: 'pipe', cwd: dir });
+
+    assert.equal(fs.readFileSync(path.join(dir, 'web/Scripts/jquery-2.1.3.js'), 'utf-8'), longComment);
+    assert.notEqual(fs.readFileSync(path.join(dir, 'node/Scripts/build.js'), 'utf-8'), longComment);
+  });
+});

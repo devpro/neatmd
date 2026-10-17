@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { splitComments, commentStyleOf } from '../src/index.js';
+import { breakCandidates } from '../src/comments.js';
 
 const LIMIT = 80;
 
@@ -146,4 +147,49 @@ test('leaves a block comment closed in the middle of code alone', () => {
   const input = `int x = /* ${'a, so b '.repeat(20)} */ 3;\n`;
 
   assert.equal(splitComments(input, 80, 'slash').content, input);
+});
+
+test('breaks a comment at the end of a sentence before any other boundary', () => {
+  const input = '// Arrays are walked by index, from zero to the end of the list. Other objects are iterated via their named properties, and in order.\n';
+
+  assert.equal(
+    splitComments(input, LIMIT, 'slash').content,
+    '// Arrays are walked by index, from zero to the end of the list.\n// Other objects are iterated via their named properties, and in order.\n'
+  );
+});
+
+test('never reads an abbreviation or an initial as the end of a sentence', () => {
+  const text = 'Read the value from e.g. Redis, the cache of Mr. Smith, cf. RFC 2616 etc. Or J. Doe and so on. More text follows here.';
+  const sentenceEnds = breakCandidates(text).filter(candidate => candidate.rank === 0).map(candidate => text.slice(0, candidate.at).trimEnd());
+
+  assert.deepEqual(sentenceEnds, ['Read the value from e.g. Redis, the cache of Mr. Smith, cf. RFC 2616 etc. Or J. Doe and so on.']);
+});
+
+test('falls back to a word break when part of a comment has no clause boundary', () => {
+  const input = '// loadToolConfig() falls back to the home file when no project config is found; overriding HOME to an empty throwaway directory is what keeps a "no project config" test true regardless of the machine running this suite\n';
+  const { content, stuck } = splitComments(input, LIMIT, 'slash');
+  const lines = content.trimEnd().split('\n');
+
+  assert.equal(stuck.length, 0);
+  assert.ok(lines.length > 2, content);
+  assert.ok(lines.every(line => line.length <= LIMIT && line.startsWith('// ')), content);
+  assert.equal(lines.map(line => line.slice(3)).join(' '), input.trimEnd().slice(3));
+  assert.equal(lines[0], '// loadToolConfig() falls back to the home file when no project config is found;');
+});
+
+test('reads the colon of a key and value as part of the value, and breaks after a dash instead', () => {
+  const input = '# JFrog docs still recommend a managed database for production-grade installs — set postgresql.enabled: false with database.* to switch later.\n';
+
+  assert.equal(
+    splitComments(input, 100, 'hash').content,
+    '# JFrog docs still recommend a managed database for production-grade installs —\n# set postgresql.enabled: false with database.* to switch later.\n'
+  );
+});
+
+test('leaves a commented-out line carrying its own trailing comment alone', () => {
+  const input = '      # disable: false                                # Do not deploy packaged components and delete any deployed components (valid items: a, b, c)\n';
+  const { content, stuck } = splitComments(input, 100, 'hash');
+
+  assert.equal(content, input);
+  assert.equal(stuck.length, 0);
 });

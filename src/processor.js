@@ -17,15 +17,20 @@ const DEFAULT_IGNORED_DIRS = new Set([
   'third_party'
 ]);
 
+function hasDotnetProject(dirPath) {
+  return fs.readdirSync(dirPath).some(entry => /\.(csproj|fsproj|vbproj|sln)$/.test(entry));
+}
+
 // bin and obj are build output next to a .NET project, and source anywhere else, such as the bin of a Node package
 function isBuildOutput(dirPath, name) {
-  return ['bin', 'obj'].includes(name)
-    && fs.readdirSync(dirPath).some(entry => /\.(csproj|fsproj|vbproj|sln)$/.test(entry));
+  return ['bin', 'obj'].includes(name) && hasDotnetProject(dirPath);
 }
 
 // a folder holding libraries copied into a web root is third party code
+// so is the Scripts folder of an ASP.NET project, where NuGet copies jQuery and its plugins
 function isVendored(dirPath, name) {
-  return name === 'lib' && path.basename(dirPath) === 'wwwroot';
+  return (name === 'lib' && path.basename(dirPath) === 'wwwroot')
+    || (name === 'Scripts' && hasDotnetProject(dirPath));
 }
 
 // asks git once per folder, so the rules of every nested .gitignore and of the global excludes apply

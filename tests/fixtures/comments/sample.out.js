@@ -1,6 +1,8 @@
 'use strict';
 
-// retries three times with a growing delay; a fixed delay would let every client of a failed server come back at the same instant and fail it again
+// retries three times with a growing delay;
+// a fixed delay would let every client of a failed server come back at the same
+// instant and fail it again
 async function fetchWithRetry(url) {
   for (let attempt = 0; attempt < 3; attempt++) {
     try {

@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { endsOnAbbreviation } from './abbreviations.js';
 
 const DEFAULT_COMMENT_LENGTH = 180;
 
@@ -37,7 +38,8 @@ export function defaultCommentLength() {
 }
 
 // finds where a comment line may be broken, ranked from the most natural break to the least
-export function breakCandidates(text) {
+// a plain space is a candidate only when asked for, as the last resort of a text with no other boundary
+export function breakCandidates(text, { words = false } = {}) {
   const result = [];
   let parens = 0;
   let inTick = false;
@@ -69,31 +71,51 @@ export function breakCandidates(text) {
     if (parens > 0) continue;
 
     const rest = text.slice(i);
-    if (c === ';' && text[i + 1] === ' ') {
+    if ('.!?'.includes(c) && text[i + 1] === ' ' && /[A-Z0-9`'"]/.test(text[i + 2] ?? '') && !(c === '.' && endsOnAbbreviation(text.slice(0, i + 1)))) {
       result.push({ at: i + 2, rank: 0 });
-    } else if (c === ':' && text[i + 1] === ' ' && i > 10) {
+    } else if (c === ';' && text[i + 1] === ' ') {
       result.push({ at: i + 2, rank: 1 });
-    } else if (c === ',' && new RegExp(`^, (${CLAUSE_WORDS})\\b`).test(rest)) {
-      result.push({ at: i + 2, rank: 1 });
-    } else if (c === ' ' && text[i - 1] !== ',' && /^ (so|and|but|which|since|because|while|where|when|instead of|rather than) /.test(rest)) {
-      result.push({ at: i + 1, rank: 3 });
-    } else if (c === ',' && text[i + 1] === ' ') {
+    } else if (c === ':' && text[i + 1] === ' ' && i > 10 && !isKeyColon(text, i)) {
       result.push({ at: i + 2, rank: 2 });
+    } else if (c === ',' && new RegExp(`^, (${CLAUSE_WORDS})\\b`).test(rest)) {
+      result.push({ at: i + 2, rank: 2 });
+    } else if (c === ' ' && /^ [\u2013\u2014] /.test(rest)) {
+      // the dash ends the line, since a continuation opening on a dash reads as a list item
+      result.push({ at: i + 3, rank: 2 });
+    } else if (c === ' ' && text[i - 1] !== ',' && /^ (so|and|but|which|since|because|while|where|when|instead of|rather than) /.test(rest)) {
+      result.push({ at: i + 1, rank: 4 });
+    } else if (c === ',' && text[i + 1] === ' ') {
+      result.push({ at: i + 2, rank: 3 });
+    } else if (words && c === ' ' && text[i + 1] !== ' ' && !/^ (?:[-*+]|\d+[.)])\s/.test(rest)) {
+      result.push({ at: i + 1, rank: 5 });
     }
   }
 
   return result;
 }
 
+// a colon closing a dotted or snake_case key, or followed by a literal, belongs to a key and value such as "enabled: false"
+function isKeyColon(text, i) {
+  return /[._]/.test(/\S*$/.exec(text.slice(0, i))[0]) || /^: (?:true|false|null|\d)/.test(text.slice(i));
+}
+
 // splits text into parts that each fit in room, or returns null when no safe break exists
+// a plain word break is taken only when no clause boundary fits, so one part without a boundary no longer leaves the whole line unsplit
 function splitText(text, room) {
   if (text.length <= room) return [text];
 
-  const candidates = breakCandidates(text).filter(candidate => {
+  const fits = candidate => {
     const head = text.slice(0, candidate.at).trimEnd();
     return head.length >= 30 && text.length - candidate.at >= 20 && head.length <= room;
-  });
-  if (candidates.length === 0) return null;
+  };
+  let candidates = breakCandidates(text).filter(fits);
+  if (candidates.length === 0) {
+    // a word break carries no meaning of its own, so the line is filled as far as it goes, as a plain word wrap would
+    const words = breakCandidates(text, { words: true }).filter(fits).sort((a, b) => b.at - a.at);
+    if (words.length === 0) return null;
+    const tail = splitText(text.slice(words[0].at).trimStart(), room);
+    return tail ? [text.slice(0, words[0].at).trimEnd(), ...tail] : null;
+  }
 
   // prefers a stronger break, then the one closest to the middle
   const middle = text.length / 2;
@@ -147,7 +169,12 @@ function readCommentLine(line, state, style) {
   }
 
   const hash = /^(\s*#(?!!)\s?)/.exec(line);
-  return hash ? { prefix: hash[1], cont: hash[1], text: line.slice(hash[1].length), suffix: '' } : null;
+  if (!hash) return null;
+
+  // a commented-out setting carrying its own trailing comment is code, which a split would scatter over two lines
+  const text = line.slice(hash[1].length);
+  if (/^[\w.-]+:\s.*\s#\s/.test(text)) return null;
+  return { prefix: hash[1], cont: hash[1], text, suffix: '' };
 }
 
 // breaks comment lines longer than maxLength at clause boundaries, and changes nothing else
