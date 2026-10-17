@@ -298,3 +298,35 @@ test('--output refuses several files', () => {
     );
   });
 });
+
+const longSentence = 'This sentence is long enough to need a break somewhere, and the clause boundary is the natural place to put it.\n';
+
+test('a file argument takes the .editorconfig above it, whatever the working directory', () => {
+  withTempDir(dir => {
+    writeTree(dir, {
+      'repo/.editorconfig': 'root = true\n[*.md]\nmax_line_length = 80\n',
+      'repo/docs/deep/a.md': longSentence,
+      'elsewhere/.editorconfig': 'root = true\n[*.md]\nmax_line_length = 240\n'
+    });
+
+    execFileSync(process.execPath, [cliPath, path.join(dir, 'repo/docs/deep/a.md')], { stdio: 'pipe', cwd: path.join(dir, 'elsewhere') });
+
+    assert.notEqual(fs.readFileSync(path.join(dir, 'repo/docs/deep/a.md'), 'utf-8'), longSentence);
+  });
+});
+
+test('a directory run applies a nested .editorconfig to its own folder only', () => {
+  withTempDir(dir => {
+    writeTree(dir, {
+      '.editorconfig': 'root = true\n[*.md]\nmax_line_length = 240\n',
+      'a.md': longSentence,
+      'sub/.editorconfig': '[*.md]\nmax_line_length = 80\n',
+      'sub/b.md': longSentence
+    });
+
+    execFileSync(process.execPath, [cliPath, dir], { stdio: 'pipe', cwd: dir });
+
+    assert.equal(fs.readFileSync(path.join(dir, 'a.md'), 'utf-8'), longSentence);
+    assert.notEqual(fs.readFileSync(path.join(dir, 'sub/b.md'), 'utf-8'), longSentence);
+  });
+});

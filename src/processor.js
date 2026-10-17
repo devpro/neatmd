@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { formatMarkdown } from './formatter.js';
-import { loadConfig } from './config.js';
+import { loadConfig, findConfigFiles } from './config.js';
 import { splitComments, commentStyleOf } from './comments.js';
 
 const DEFAULT_IGNORED_DIRS = new Set([
@@ -48,16 +48,19 @@ function gitIgnoredEntries(dirPath, names) {
 export function processFile(filePath, options = {}) {
   const content = fs.readFileSync(filePath, 'utf-8');
 
+  // a length given by the caller wins, otherwise each file reads the .editorconfig files above it, so a nested one applies to its own folder
+  const maxLineLength = options.maxLineLength
+    ?? loadConfig(findConfigFiles(path.dirname(path.resolve(filePath))), filePath).maxLineLength;
+
   const style = commentStyleOf(filePath);
   let formatted;
   if (style) {
     // a source file only has its long comments broken, whatever else it holds is left as written
-    const maxLength = loadConfig(options.configPath, filePath).maxLineLength;
-    const result = splitComments(content, maxLength, style);
+    const result = splitComments(content, maxLineLength, style);
     result.stuck.forEach(item => console.warn(`⚠ No safe break: ${filePath}:${item.line}: ${item.text}`));
     formatted = result.content;
   } else {
-    formatted = formatMarkdown(content, options);
+    formatted = formatMarkdown(content, { ...options, maxLineLength });
   }
   const isModified = content !== formatted;
 

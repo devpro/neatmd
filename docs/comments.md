@@ -41,6 +41,9 @@ Extensions                                                   | Comment forms
 The limit is `max_line_length` of the `.editorconfig` section matching the file, 180 when none is set.
 Markdown keeps its own default of 240.
 
+The `.editorconfig` files are read from the folder of each file up to the first one with `root = true`, the closest one winning.
+The working directory plays no part, so a file gets the same limit wherever the command is run from.
+
 ```ini
 [*.cs]
 max_line_length = 180

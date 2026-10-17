@@ -298,3 +298,86 @@ test('never splits a sentence inside a link text', () => {
 
   assert.equal(formatMarkdown(input, 240), input);
 });
+
+test('never starts a continuation line on a marker that opens a block', () => {
+  // a continuation opening on "- " or "1. " would render as a new list item, and on "#" or ">" as a heading or a quote
+  for (const marker of ['-', '+', '*', '1.', '2)', '#', '>']) {
+    const input = `${'word '.repeat(10)}${marker} tail words that carry on after it\n`;
+    const lines = formatMarkdown(input, 50).trimEnd().split('\n');
+
+    assert.ok(lines.length > 1, `no break for ${marker}`);
+    for (const line of lines.slice(1)) {
+      assert.ok(!/^\s*(?:[-*+>#]|\d+[.)])(?:\s|$)/.test(line), `continuation opens a block: ${line}`);
+    }
+    assert.equal(lines.join(' '), input.trimEnd());
+  }
+
+  // a sentence opening on a marker stays on the line of the sentence before it
+  assert.equal(formatMarkdown('Fill the form. * marks a required field.\n', 240), 'Fill the form. * marks a required field.\n');
+  assert.equal(formatMarkdown('Steps follow. 1) Open the file. Then save.\n', 240), 'Steps follow. 1) Open the file.\nThen save.\n');
+});
+
+test('keeps a date after a long link on the line of its dash', () => {
+  const link = `[${'a'.repeat(30)}](https://example.com/${'b'.repeat(40)})`;
+  const input = `- ${link} - June 25, 2019\n`;
+
+  assert.equal(formatMarkdown(input, 60), `- ${link} -\n  June 25, 2019\n`);
+});
+
+test('never leaves a continuation line holding nothing but indentation', () => {
+  // the next pass would read that line as blank, and a blank line between items makes the list loose
+  const input = `- [notes](https://example.com/${'b'.repeat(70)})\n- next\n`;
+  const result = formatMarkdown(input, 60);
+
+  assert.equal(result, input);
+  assert.equal(formatMarkdown(result, 60), result);
+});
+
+test('leaves the content of an HTML comment alone', () => {
+  const cases = [
+    '<!--\nThe first sentence is here. The second one follows.\n-->\n',
+    '<!--\n* item | cell\n-|-\n\nA. B\n-->\n',
+    '  <!-- One. Two -->\n',
+    `<!--\n${'word '.repeat(40).trim()}\n-->\n`
+  ];
+
+  for (const input of cases) {
+    assert.equal(formatMarkdown(input, 60), input);
+  }
+});
+
+test('formats again after an HTML comment is closed', () => {
+  assert.equal(formatMarkdown('<!--\nA. B\n\nC. D\n-->\n\nOne. Two\n', 240), '<!--\nA. B\n\nC. D\n-->\n\nOne.\nTwo\n');
+  assert.equal(formatMarkdown('<!-- note. Still note -->\nOne. Two\n', 240), '<!-- note. Still note -->\nOne.\nTwo\n');
+});
+
+test('leaves an HTML block alone up to the blank line that ends it', () => {
+  const iframe = '  <iframe src="https://example.com/embed" title="A player" allow="accelerometer; autoplay; clipboard-write; encrypted-media" allowfullscreen></iframe>\n';
+  assert.equal(formatMarkdown(iframe, 80), iframe);
+
+  // the Markdown between the tags of a details element is formatted as usual
+  assert.equal(
+    formatMarkdown('<details>\n<summary>One. Two</summary>\n\nThree. Four\n\n</details>\n', 240),
+    '<details>\n<summary>One. Two</summary>\n\nThree.\nFour\n\n</details>\n'
+  );
+
+  // a pre element runs to its closing tag, blank lines included
+  const pre = '<pre>\nOne. Two\n\nThree. Four\n</pre>\n';
+  assert.equal(formatMarkdown(pre, 240), pre);
+});
+
+test('reads an autolink opening a line as text, not as HTML', () => {
+  assert.equal(
+    formatMarkdown('<https://example.com> is the site. Another one.\n', 240),
+    '<https://example.com> is the site.\nAnother one.\n'
+  );
+});
+
+test('reads an inline tag inside a paragraph as text, while a block tag still opens HTML', () => {
+  // only the block level elements of CommonMark interrupt a paragraph, any other tag is inline HTML within it
+  assert.equal(
+    formatMarkdown('Type this:\n<iframe src="javascript:alert(1)">\nOne. Two\n', 240),
+    'Type this:\n<iframe src="javascript:alert(1)">\nOne.\nTwo\n'
+  );
+  assert.equal(formatMarkdown('Intro.\n<div>\nOne. Two\n</div>\n', 240), 'Intro.\n<div>\nOne. Two\n</div>\n');
+});

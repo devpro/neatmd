@@ -3,7 +3,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { parseArgs } from 'node:util';
-import { loadConfig, processFile, processDirectory } from '../src/index.js';
+import { processFile, processDirectory } from '../src/index.js';
 
 const pkgPath = new URL('../package.json', import.meta.url);
 const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf-8'));
@@ -60,14 +60,7 @@ try {
   let hasDirectory = false;
 
   for (const { targetPath, isDirectory } of targets) {
-    const targetDir = isDirectory ? targetPath : path.dirname(targetPath);
-    const configPath = [
-      path.join(targetDir, '.editorconfig'),
-      path.join(process.cwd(), '.editorconfig')
-    ].find(fs.existsSync);
-
-    const config = loadConfig(configPath);
-    const options = { ...config, configPath, comments: values.comments, check: values.check, output: values.output };
+    const options = { comments: values.comments, check: values.check, output: values.output };
 
     if (isDirectory) {
       hasDirectory = true;
