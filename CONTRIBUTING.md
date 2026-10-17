@@ -1,5 +1,42 @@
 # Contributing
 
+## Tasks
+
+> [!TIP]
+> Common workflows are defined in [`Taskfile.yml`](Taskfile.yml), run with [Task](https://taskfile.dev) 3.x.
+
+List available tasks:
+
+```bash
+task --list
+```
+
+Run the unit tests:
+
+```bash
+task test
+```
+
+Run what CI runs, unit tests then the format check of the repository's own Markdown:
+
+```bash
+task check
+```
+
+Bump the package version, since `pkg.yml` publishes on every push to `main`:
+
+```bash
+task dev:bump
+```
+
+[IstarCI](https://github.com/devpro/istarci) runs the CI pipeline of every commit locally:
+
+```bash
+task ci:setup   # registers this repository and installs the pre-push hook
+task ci         # the runs of the recent commits
+task ci:logs    # the output of the last run
+```
+
 ## Run from the source
 
 Experiment on a local path:
