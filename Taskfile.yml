@@ -1,0 +1,57 @@
+version: '3'
+
+# Every workflow described in README.md, CONTRIBUTING.md and docs/ as a single command
+
+tasks:
+  default:
+    cmds:
+      - task --list
+
+  test:
+    desc: Run the unit test suite
+    cmds:
+      - npm test
+
+  run:
+    desc: 'Run neatmd from the source: task run -- tests/fixtures/wrap.in.md -o tests/fixtures/wrap.res.md'
+    cmds:
+      - node bin/cli.js {{.CLI_ARGS}}
+
+  format:check:
+    desc: Check the repository's own Markdown with neatmd from the source, as CI does
+    cmds:
+      # The .in.md fixtures are unformatted on purpose, so CI deletes them before the check: the exclusion keeps the working tree intact instead.
+      - node bin/cli.js --check $(git ls-files '*.md' ':!:tests/fixtures/*.in.md')
+
+  check:
+    desc: What CI runs, unit tests then the format check
+    cmds:
+      - task: test
+      - task: format:check
+
+  pack:
+    desc: List what the npm package would contain, without creating it
+    cmds:
+      - npm pack --dry-run
+
+  # pkg.yml publishes on every push to main and fails on a version already on the registry, so a change meant for release bumps first.
+  dev:bump:
+    desc: Bump the package to the next patch version
+    cmds:
+      - npm version patch --no-git-tag-version
+
+  ci:setup:
+    desc: Register the repository with the IstarCI daemon and gate git push on its runs
+    cmds:
+      - istarci add "{{.ROOT_DIR}}"
+      - istarci install-hook "{{.ROOT_DIR}}"
+
+  ci:
+    desc: Show the IstarCI runs of the recent commits
+    cmds:
+      - istarci status "{{.ROOT_DIR}}"
+
+  ci:logs:
+    desc: Show the output of the last IstarCI run
+    cmds:
+      - istarci logs "{{.ROOT_DIR}}" {{.CLI_ARGS}}
