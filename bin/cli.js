@@ -3,7 +3,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { parseArgs } from 'node:util';
-import { loadConfig, processFile, processDirectory } from '../src/index.js';
+import { processFile, processDirectory } from '../src/index.js';
 
 const pkgPath = new URL('../package.json', import.meta.url);
 const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf-8'));
@@ -11,6 +11,7 @@ const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf-8'));
 const optionsSchema = {
   output: { type: 'string', short: 'o' },
   check: { type: 'boolean', short: 'c' },
+  comments: { type: 'boolean' },
   version: { type: 'boolean', short: 'V' },
   help: { type: 'boolean', short: 'h' },
 };
@@ -24,9 +25,10 @@ try {
   }
 
   if (values.help || positionals.length === 0) {
-    console.log('Usage: neatmd <file|directory> [options]');
+    console.log('Usage: neatmd <file|directory>... [options]');
     console.log('\nOptions:');
     console.log('  -c, --check          Check if files are formatted without writing');
+    console.log('      --comments       Also break long comments in source files of a directory');
     console.log('  -o, --output <file>  Specify output file (single file mode only)');
     console.log('  -V, --version        Show version number');
     console.log('  -h, --help           Show help menu');
@@ -38,45 +40,48 @@ try {
     process.exit(1);
   }
 
-  const targetPath = path.resolve(process.cwd(), positionals[0]);
+  const targets = positionals.map(positional => {
+    const targetPath = path.resolve(process.cwd(), positional);
 
-  if (!fs.existsSync(targetPath)) {
-    console.error(`✖ Error: Path does not exist "${positionals[0]}"`);
-    process.exit(1);
-  }
+    if (!fs.existsSync(targetPath)) {
+      console.error(`✖ Error: Path does not exist "${positional}"`);
+      process.exit(1);
+    }
 
-  const stat = fs.statSync(targetPath);
+    return { targetPath, isDirectory: fs.statSync(targetPath).isDirectory() };
+  });
 
-  if (values.output && stat.isDirectory()) {
+  if (values.output && (targets.length > 1 || targets[0].isDirectory)) {
     console.error('✖ Error: --output only applies to a single file.');
     process.exit(1);
   }
 
-  const targetDir = stat.isDirectory() ? targetPath : path.dirname(targetPath);
-  const configPath = [
-    path.join(targetDir, '.editorconfig'),
-    path.join(process.cwd(), '.editorconfig')
-  ].find(fs.existsSync);
+  let modifiedCount = 0;
+  let hasDirectory = false;
 
-  const config = loadConfig(configPath);
-  const options = { ...config, check: values.check, output: values.output };
+  for (const { targetPath, isDirectory } of targets) {
+    const options = { comments: values.comments, check: values.check, output: values.output };
 
-  const modifiedCount = stat.isDirectory()
-    ? processDirectory(targetPath, options)
-    : (processFile(targetPath, options) ? 1 : 0);
+    if (isDirectory) {
+      hasDirectory = true;
+      modifiedCount += processDirectory(targetPath, options);
+    } else if (processFile(targetPath, options)) {
+      modifiedCount++;
+    }
+  }
 
   if (values.check) {
     if (modifiedCount > 0) {
       console.error(`\n✖ Check failed: ${modifiedCount} file(s) need formatting.`);
       process.exit(1);
     } else {
-      console.log('✔ All Markdown files are properly formatted!');
+      console.log('✔ All files are properly formatted!');
       process.exit(0);
     }
   } else {
     if (modifiedCount === 0) {
-      console.log('All Markdown files are already neat!');
-    } else if (stat.isDirectory()) {
+      console.log('All files are already neat!');
+    } else if (hasDirectory || targets.length > 1) {
       console.log(`\nDone! Formatted ${modifiedCount} file(s).`);
     }
   }

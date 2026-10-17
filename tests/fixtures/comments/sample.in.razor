@@ -1,0 +1,14 @@
+@page "/orders"
+
+@* the table is rendered server side; the client only sorts what it received and never asks the server again, which keeps the page usable on a slow connection *@
+<table>
+    @*
+       the footer repeats the header, since a long table loses its header when the reader scrolls; the repetition is cheap and saves a sticky header script here
+    *@
+    <tfoot></tfoot>
+</table>
+
+@code {
+    // the page size is fixed; a user chosen size would need a new query on every change, and the grid would flicker while the new rows are on their way over
+    private const int PageSize = 50;
+}

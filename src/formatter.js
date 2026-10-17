@@ -1,31 +1,12 @@
+import { breakCandidates } from './comments.js';
+import { abbreviationAlternatives } from './abbreviations.js';
+
 const DEFAULT_OPTIONS = {
   maxLineLength: 240,
 };
 
-// abbreviations that end on a full stop without ending a sentence single letters,
-// which cover "e.g.", "i.e." and initials, are handled by their own rule below a word that also stands on its own, such as "no", stays out: "the answer is no." does end a sentence
-const ABBREVIATIONS = [
-  'al',
-  'approx',
-  'cf',
-  'Dr',
-  'etc',
-  'fig',
-  'Inc',
-  'Ltd',
-  'Mr',
-  'Mrs',
-  'Ms',
-  'Prof',
-  'ref',
-  'vs',
-  'ep'
-];
-
-// each abbreviation is matched as written and capitalised, since it can open a sentence
-const abbreviationAlternatives = [...new Set(
-  ABBREVIATIONS.flatMap(word => [word, word[0].toUpperCase() + word.slice(1)])
-)].join('|');
+// the shortest last line a word wrap leaves, the same floor a clause break keeps
+const MIN_TAIL = 20;
 
 // uses hardened semantic line breaks
 // 1. (?<!\b(?:etc|ref|...)\.) -> Ignore known abbreviations
@@ -36,6 +17,15 @@ const abbreviationAlternatives = [...new Set(
 const SENTENCE_SPLIT_REGEX = new RegExp(
   `(?<!\\b(?:${abbreviationAlternatives})\\.)(?<!\\b[a-zA-Z]\\.)(?<=[.!?])\\s+(?=[A-Z0-9\`*_'\\[])`
 );
+
+// the elements that open an HTML block even in the middle of a paragraph, as listed by CommonMark
+const BLOCK_TAGS = new Set([
+  'address', 'article', 'aside', 'base', 'basefont', 'blockquote', 'body', 'caption', 'center', 'col', 'colgroup',
+  'dd', 'details', 'dialog', 'dir', 'div', 'dl', 'dt', 'fieldset', 'figcaption', 'figure', 'footer', 'form', 'frame',
+  'frameset', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'head', 'header', 'hr', 'html', 'legend', 'li', 'link',
+  'main', 'menu', 'menuitem', 'nav', 'noframes', 'ol', 'optgroup', 'option', 'p', 'param', 'search', 'section',
+  'summary', 'table', 'tbody', 'td', 'tfoot', 'th', 'thead', 'title', 'tr', 'track', 'ul'
+]);
 
 export function formatMarkdown(content, options = {}) {
   const maxLineLength = typeof options === 'number'
@@ -60,6 +50,25 @@ export function formatMarkdown(content, options = {}) {
       && fence.info.trim() === '';
   }
 
+  // holds what ends the HTML being crossed: a pattern for a comment or a raw text element, 'blank' for any other block, and null outside of HTML
+  let htmlEnd = null;
+
+  // reads the start of an HTML block, whose content is not Markdown and is never touched
+  // a line opening on an autolink such as <https://example.com> is text, since a tag name is never followed by a colon
+  function readHtmlStart(line, afterText) {
+    const text = line.trimStart();
+    if (text.startsWith('<!--')) return { end: /-->/, rest: text.slice(4) };
+
+    // these elements may hold blank lines, so only their closing tag ends them
+    const raw = text.match(/^<(pre|script|style|textarea)(?=[\s>]|$)/i);
+    if (raw) return { end: new RegExp(`</${raw[1]}>`, 'i'), rest: text.slice(raw[0].length) };
+
+    // only a block level element interrupts a paragraph, any other tag right after text is inline HTML within it
+    const tag = text.match(/^<\/?([A-Za-z][A-Za-z0-9-]*)(?=[\s/>]|$)/);
+    if (tag && (!afterText || BLOCK_TAGS.has(tag[1].toLowerCase()))) return { end: 'blank' };
+    return null;
+  }
+
   function isSeparatorLine(line) {
     return line.includes('|') && line.includes('-') && line.replace(/[:\-|\s]/g, '') === '';
   }
@@ -67,6 +76,11 @@ export function formatMarkdown(content, options = {}) {
   // a table is broken by the beginning of another block level structure, whatever pipes that line happens to contain
   function startsNewBlock(line) {
     return /^\s*(#|>|(?:[-*+]|\d+[.)])\s|```|~~~)/.test(line);
+  }
+
+  // a row may open on a list marker, such as "1. The cluster | runs", so only the blocks that cannot be a cell end it
+  function endsTable(line) {
+    return /^\s*(#|>|```|~~~)/.test(line);
   }
 
   let i = 0;
@@ -95,8 +109,31 @@ export function formatMarkdown(content, options = {}) {
       continue;
     }
 
+    // a fence marker inside HTML is part of it, so the end of the HTML is looked for first
+    // the blank line ending a block is formatted as any other blank line
+    if (htmlEnd) {
+      if (htmlEnd === 'blank' && line.trim() === '') {
+        htmlEnd = null;
+      } else {
+        if (htmlEnd !== 'blank' && htmlEnd.test(line)) htmlEnd = null;
+        output.push(line);
+        i++;
+        continue;
+      }
+    }
+
     if (fence) {
       openFence = fence.marker;
+      output.push(line);
+      i++;
+      continue;
+    }
+
+    const afterText = i > 0 && lines[i - 1].trim() !== '' && !/^\s*(#|```|~~~)/.test(lines[i - 1]);
+    const html = readHtmlStart(line, afterText);
+    if (html) {
+      // a comment or an element closed on its opening line ends there
+      if (html.end === 'blank' || !html.end.test(html.rest)) htmlEnd = html.end;
       output.push(line);
       i++;
       continue;
@@ -107,7 +144,7 @@ export function formatMarkdown(content, options = {}) {
       // takes the header and the separator, then every row until a blank line or another block
       let tableLines = [lines[i], lines[i + 1]];
       i += 2;
-      while (i < lines.length && lines[i].includes('|') && !startsNewBlock(lines[i])) {
+      while (i < lines.length && lines[i].includes('|') && !endsTable(lines[i])) {
         tableLines.push(lines[i]);
         i++;
       }
@@ -168,7 +205,7 @@ export function formatMarkdown(content, options = {}) {
         currentSentence = rawSentences[k];
         currentPos += rawSentences[k].length;
       } else {
-        if (isInsideQuotesOrCode(textToProcess, currentPos)) {
+        if (isInsideQuotesOrCode(textToProcess, currentPos) || isInsideLink(textToProcess, currentPos) || opensBlock(rawSentences[k])) {
           currentSentence += ' ' + rawSentences[k];
         } else {
           sentences.push(currentSentence);
@@ -199,9 +236,9 @@ export function formatMarkdown(content, options = {}) {
           // ensures we don't break at punctuation that lives inside quotes/code
           while (pos !== -1) {
             const splitAt = p === ' - ' ? pos + 2 : pos + 1;
-            if (splitAt > prefix.length && splitAt > bestPunctPos) {
+            if (splitAt > prefix.length && splitAt > bestPunctPos && !opensBlock(remaining.substring(splitAt))) {
               // asks about the whole line, so a quoted phrase reaching past the limit is still seen as a pair
-              if (!isInsideQuotesOrCode(remaining, pos)) {
+              if (!isInsideQuotesOrCode(remaining, pos) && !isInsideLink(remaining, pos)) {
                 bestPunctPos = splitAt;
                 break;
               }
@@ -213,21 +250,48 @@ export function formatMarkdown(content, options = {}) {
         // splits only at punctuation if it's reasonably far into the line (e.g., > 50% of max length)
         if (bestPunctPos >= maxLineLength / 2) {
           splitPos = bestPunctPos;
+        } else if ((splitPos = findClauseBreak(remaining, maxLineLength, prefix.length)) !== -1) {
+          // B. breaks at a clause boundary, such as ", so" or ", which", before resorting to a plain word
         } else {
-          // B. fallbacks to standard word-wrap (last space before limit)
-          const spacePos = substring.lastIndexOf(' ');
+          // C. fallbacks to standard word-wrap (last space before limit)
+          // a space inside a link is skipped, since the link has to stay on one line
+          const allowed = pos => !isInsideLink(remaining, pos) && !opensBlock(remaining.substring(pos));
+          // a break inside inline code or emphasis is valid but reads badly, so it is avoided while a space before it keeps the line half full
+          const preferred = pos => allowed(pos) && !isInsideCodeOrEmphasis(remaining, pos);
+          const lastSpace = (accepts, from = substring.length) => {
+            let pos = substring.lastIndexOf(' ', from);
+            while (pos > prefix.length && !accepts(pos)) pos = substring.lastIndexOf(' ', pos - 1);
+            return pos > prefix.length ? pos : -1;
+          };
+
+          let spacePos = lastSpace(preferred);
+          if (spacePos < maxLineLength / 2) spacePos = lastSpace(allowed);
+
+          // a last line of a word or two is avoided by moving a few words down, as long as the line above stays half full
+          const tailLength = pos => remaining.length - pos - 1;
+          if (spacePos !== -1 && tailLength(spacePos) < MIN_TAIL) {
+            let earlier = spacePos;
+            while (earlier !== -1 && tailLength(earlier) < MIN_TAIL) earlier = lastSpace(preferred, earlier - 1);
+            if (earlier >= maxLineLength / 2) spacePos = earlier;
+          }
+
           if (spacePos > prefix.length) {
             splitPos = spacePos;
           } else {
-            // C. finds the *next* available space, if the word is longer than max length (e.g. long URL) force wraps if a single unbroken word exceeds max limit
-            const nextSpace = remaining.indexOf(' ', Math.max(maxLineLength, prefix.length));
+            // D. finds the *next* available space, if the word is longer than max length (e.g. long URL) force wraps if a single unbroken word exceeds max limit
+            let nextSpace = remaining.indexOf(' ', Math.max(maxLineLength, prefix.length));
+            while (nextSpace !== -1 && (isInsideLink(remaining, nextSpace) || opensBlock(remaining.substring(nextSpace)))) {
+              nextSpace = remaining.indexOf(' ', nextSpace + 1);
+            }
             splitPos = nextSpace !== -1 ? nextSpace : remaining.length;
           }
         }
 
         output.push(remaining.substring(0, splitPos).trimEnd());
 
-        remaining = indentPrefix + remaining.substring(splitPos).trimStart();
+        // a word too long to break leaves nothing behind it, and a line of bare indentation would read as blank on the next pass
+        const rest = remaining.substring(splitPos).trimStart();
+        remaining = rest === '' ? '' : indentPrefix + rest;
       }
 
       if (remaining.length > 0) {
@@ -244,24 +308,64 @@ export function formatMarkdown(content, options = {}) {
   return formatted === '' ? '' : formatted + '\n';
 }
 
+// finds the latest clause boundary that keeps the line within the limit, and returns -1 when none sits in its second half
+// a boundary inside a link, inline code or quotes is not a boundary
+function findClauseBreak(line, maxLineLength, prefixLength) {
+  const fitting = breakCandidates(line.slice(prefixLength))
+    .map(candidate => ({ ...candidate, at: candidate.at + prefixLength }))
+    .filter(candidate => {
+      const head = line.slice(0, candidate.at).trimEnd();
+      return head.length <= maxLineLength
+        && head.length >= maxLineLength / 2
+        && line.length - candidate.at >= MIN_TAIL
+        && !opensBlock(line.slice(candidate.at))
+        && !isInsideLink(line, candidate.at - 2)
+        && !isInsideQuotesOrCode(line, candidate.at - 2);
+    })
+    .sort((a, b) => a.rank - b.rank || b.at - a.at);
+
+  return fitting.length > 0 ? fitting[0].at : -1;
+}
+
+// a line opening on one of these starts a list item, a heading, a quote, a fence or a setext underline instead of continuing the paragraph
+function opensBlock(text) {
+  return /^(?:(?:[-*+]|\d{1,9}[.)])(?:\s|$)|#{1,6}(?:\s|$)|>|`{3,}|~{3,}|[-=]+\s*$)/.test(text.trimStart());
+}
+
 function formatTable(tableLines) {
   // a table nested in a list item is held there by its indentation, which the header carries for the whole table
-  const indent = tableLines[0].match(/^\s*/)[0];
+  // the least indented line gives it: a header opening on an empty cell is indented by that cell
+  const indent = tableLines.map(line => line.match(/^\s*/)[0]).reduce((a, b) => (b.length < a.length ? b : a));
+
+  // the separator tells whether rows carry a leading pipe, so that a pipe opening a row of a table without one is an empty cell
+  const tableHasLeadingPipe = tableLines[1].trim().startsWith('|');
 
   const parsedRows = tableLines.map(line => {
     let trimmed = line.trim();
-    let hasLeadingPipe = trimmed.startsWith('|');
-    let hasTrailingPipe = trimmed.endsWith('|');
+    let hasLeadingPipe = tableHasLeadingPipe && trimmed.startsWith('|');
+    let hasTrailingPipe = /(?<!\\)\|$/.test(trimmed);
 
     if (hasLeadingPipe) trimmed = trimmed.substring(1);
     if (hasTrailingPipe) trimmed = trimmed.substring(0, trimmed.length - 1);
 
     return {
-      cells: trimmed.split('|').map(c => c.trim()),
+      // a pipe escaped with a backslash belongs to the cell, inline code or not
+      cells: trimmed.split(/(?<!\\)\|/).map(c => c.trim()),
       hasLeadingPipe,
       hasTrailingPipe
     };
   });
+
+  // an empty first cell padded to the width of its column would open the row with four spaces or more, which Markdown reads as an indented code block
+  // the row has no leading pipe to stop that, so a placeholder takes the cell
+  if (!tableHasLeadingPipe) {
+    const firstWidth = Math.max(...parsedRows.filter((row, index) => index !== 1).map(row => row.cells[0].length));
+    if (firstWidth >= 4) {
+      parsedRows.forEach((row, index) => {
+        if (index > 1 && row.cells[0] === '') row.cells[0] = '&nbsp;';
+      });
+    }
+  }
 
   const colCount = Math.max(...parsedRows.map(r => r.cells.length));
   const colWidths = new Array(colCount).fill(0);
@@ -291,9 +395,8 @@ function formatTable(tableLines) {
         if (isFirst && !row.hasLeadingPipe) {
           dashCount = colWidths[colIndex] + 1;
         } else if (isLast && !row.hasTrailingPipe) {
-          // matches header length for the open-ended last column
-          const headerLength = parsedRows[0].cells[colIndex] ? parsedRows[0].cells[colIndex].length : 3;
-          dashCount = headerLength + 1;
+          // follows the longest value of the open-ended last column, as the other columns do
+          dashCount = colWidths[colIndex] + 1;
         } else {
           dashCount = colWidths[colIndex] + 2;
         }
@@ -374,4 +477,31 @@ function mapProtectedPositions(text) {
 function isInsideQuotesOrCode(text, index) {
   const positions = mapProtectedPositions(text);
   return index >= 0 && index < positions.length && positions[index] === 1;
+}
+
+const LINK = /!?\[(?:[^\[\]]|!?\[[^\]]*\](?:\([^)]*\))?)*\](?:\([^)]*\))?/g;
+
+let linkedText = null;
+let linkSpans = null;
+
+// a link is one unit: neither its text nor its target is a place to end a line or a sentence
+function isInsideLink(text, index) {
+  if (text !== linkedText) {
+    linkedText = text;
+    linkSpans = [...text.matchAll(LINK)].map(m => [m.index, m.index + m[0].length]);
+  }
+  return linkSpans.some(([from, to]) => index >= from && index < to);
+}
+
+const INLINE_SPAN = /(`+)[\s\S]*?\1|(?<![\w*])(\*\*?)(?=\S)[^*]+?(?<=\S)\2(?![\w*])|(?<![\w_])(__?)(?=\S)[^_]+?(?<=\S)\3(?![\w_])/g;
+
+let spannedText = null;
+let inlineSpans = null;
+
+function isInsideCodeOrEmphasis(text, index) {
+  if (text !== spannedText) {
+    spannedText = text;
+    inlineSpans = [...text.matchAll(INLINE_SPAN)].map(m => [m.index, m.index + m[0].length]);
+  }
+  return inlineSpans.some(([from, to]) => index > from && index < to);
 }

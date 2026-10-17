@@ -1,0 +1,12 @@
+runner:
+  image: ghcr.io/devpro/debian-node:latest
+
+workflow:
+  # The global default only warns, and the list below is complete for this repository, so an action outside it stops the run.
+  onDisallowedAction: fail
+  allowedActions:
+    - actions/*
+    - github/*
+    - devpro/github-workflow-parts/*
+  exclude:
+    - pkg.yml
