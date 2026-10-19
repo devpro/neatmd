@@ -31,5 +31,6 @@ jobs:
           registry-url: 'https://registry.npmjs.org'
           package-manager-cache: false
 
+      # npm trusted publishing: the package is published with a short-lived OIDC token rather than a stored secret.
       - name: Publish to npm
-        run: npm publish
+        uses: devpro/github-workflow-parts/actions/npm/publish@c6d06a61a377a41dc192ce58f08a0b5100d9a2bc

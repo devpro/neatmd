@@ -20,7 +20,7 @@ permissions:
 jobs:
   content-validate:
     name: Markup
-    uses: devpro/github-workflow-parts/.github/workflows/reusable-markup-lint.yml@f9d8c00db1ed723e39cfff6c4c7addc77a23c54d
+    uses: devpro/github-workflow-parts/.github/workflows/reusable-markup-lint.yml@c6d06a61a377a41dc192ce58f08a0b5100d9a2bc
 
   test:
     name: "Test"
