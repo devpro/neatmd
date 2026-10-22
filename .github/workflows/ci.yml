@@ -20,21 +20,15 @@ permissions:
 jobs:
   content-validate:
     name: Markup
-    uses: devpro/github-workflow-parts/.github/workflows/reusable-markup-lint.yml@c6d06a61a377a41dc192ce58f08a0b5100d9a2bc
+    uses: devpro/github-workflow-parts/.github/workflows/reusable-markup-lint.yml@f9e473710e83b91ff0f594476ca4e6bc0954e1f9
 
   test:
     name: "Test"
-    runs-on: ubuntu-latest
-    steps:
-      - name: Clone repository
-        uses: actions/checkout@v7
-      - name: Install Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version: 22
-      - name: Run tests
-        run: npm test
-      - name: Run neatmd on its source
-        run: |
-          rm -rf tests/fixtures/*.in.md
-          node bin/cli.js --check .
+    uses: devpro/github-workflow-parts/.github/workflows/reusable-node-quality.yml@f9e473710e83b91ff0f594476ca4e6bc0954e1f9
+    with:
+      # neatmd checks its own Markdown, its fixtures of malformed input left out.
+      custom-tests: |
+        rm -rf tests/fixtures/*.in.md
+        node bin/cli.js --check .
+      job-name: Test
+      workflow-parts-version: f9e473710e83b91ff0f594476ca4e6bc0954e1f9

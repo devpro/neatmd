@@ -16,21 +16,11 @@ permissions:
 jobs:
   publish:
     name: "Publish"
-    runs-on: ubuntu-latest
     permissions:
-      id-token: write
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v7
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version: 24
-          registry-url: 'https://registry.npmjs.org'
-          package-manager-cache: false
-
+      contents: read
       # npm trusted publishing: the package is published with a short-lived OIDC token rather than a stored secret.
-      - name: Publish to npm
-        uses: devpro/github-workflow-parts/actions/npm/publish@c6d06a61a377a41dc192ce58f08a0b5100d9a2bc
+      id-token: write
+    uses: devpro/github-workflow-parts/.github/workflows/reusable-npm-publication.yml@f9e473710e83b91ff0f594476ca4e6bc0954e1f9
+    with:
+      job-name: Publish
+      workflow-parts-version: f9e473710e83b91ff0f594476ca4e6bc0954e1f9
