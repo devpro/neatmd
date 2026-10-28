@@ -383,9 +383,10 @@ test('reads an inline tag inside a paragraph as text, while a block tag still op
 });
 
 test('backs up a word or two rather than leave a few characters alone on the last line', () => {
-  const input = 'aaaa '.repeat(12) + 'end.\n';
+  // a space past the limit, since a line whose overflow is one word is left whole
+  const input = 'aaaa '.repeat(12) + 'the end.\n';
 
-  assert.equal(formatMarkdown(input, 60), 'aaaa '.repeat(8).trim() + '\n' + 'aaaa aaaa aaaa aaaa end.\n');
+  assert.equal(formatMarkdown(input, 60), 'aaaa '.repeat(9).trim() + '\n' + 'aaaa aaaa aaaa the end.\n');
 });
 
 test('wraps before inline code or emphasis rather than inside it', () => {
@@ -397,4 +398,30 @@ test('wraps before inline code or emphasis rather than inside it', () => {
     formatMarkdown('Some words that lead to the date written _April 12, 2019_\n', 50),
     'Some words that lead to the date\nwritten _April 12, 2019_\n'
   );
+});
+
+test('leaves a line alone when nothing past the limit holds a space, as markdownlint accepts it', () => {
+  const input = 'word '.repeat(11) + 'end-of-the-line).\n';
+
+  assert.equal(formatMarkdown(input, 60), input);
+});
+
+test('still wraps a line when a space lies past the limit', () => {
+  const input = 'word '.repeat(11) + 'end of the line.\n';
+
+  assert.ok(formatMarkdown(input, 60).split('\n').every(line => line.length <= 60));
+});
+
+test('breaks at a comma inside parentheses when the line has no boundary outside them', () => {
+  const input = '- [x] Topic (`labs/topic`, taught on a cluster with words, a stolen certificate that expires, NFLOG and `xt_set` added to the kernel)\n';
+  const [first] = formatMarkdown(input, 110).split('\n');
+
+  assert.ok(first.endsWith('expires,'), `not broken at the comma: ${first}`);
+});
+
+test('prefers a boundary outside parentheses to one inside them', () => {
+  const input = 'The first clause of this sentence is long enough to need a break, and then (a parenthesis, with a comma) closes it.\n';
+  const [first] = formatMarkdown(input, 90).split('\n');
+
+  assert.equal(first, 'The first clause of this sentence is long enough to need a break,');
 });

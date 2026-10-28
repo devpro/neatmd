@@ -39,7 +39,8 @@ export function defaultCommentLength() {
 
 // finds where a comment line may be broken, ranked from the most natural break to the least
 // a plain space is a candidate only when asked for, as the last resort of a text with no other boundary
-export function breakCandidates(text, { words = false } = {}) {
+// a boundary inside parentheses is one only when asked for, for a line held by a parenthesis from start to end
+export function breakCandidates(text, { words = false, insideParens = false } = {}) {
   const result = [];
   let parens = 0;
   let inTick = false;
@@ -68,7 +69,7 @@ export function breakCandidates(text, { words = false } = {}) {
 
     if (c === '(') parens++;
     if (c === ')') parens = Math.max(0, parens - 1);
-    if (parens > 0) continue;
+    if (parens > 0 && !insideParens) continue;
 
     const rest = text.slice(i);
     if ('.!?'.includes(c) && text[i + 1] === ' ' && /[A-Z0-9`'"]/.test(text[i + 2] ?? '') && !(c === '.' && endsOnAbbreviation(text.slice(0, i + 1)))) {
