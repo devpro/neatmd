@@ -222,7 +222,8 @@ export function formatMarkdown(content, options = {}) {
       // gets the real marker on first sentence, subsequent sentences get blank spaces to align
       let remaining = (j === 0) ? prefix + sentence : indentPrefix + sentence;
 
-      while (remaining.length > maxLineLength) {
+      // a line whose overflow holds no space is left whole, as markdownlint's MD013 accepts it, so a lint-clean file is not rewrapped
+      while (remaining.length > maxLineLength && /\s/.test(remaining.slice(maxLineLength))) {
         let splitPos = -1;
         const substring = remaining.substring(0, maxLineLength + 1);
 
@@ -310,8 +311,14 @@ export function formatMarkdown(content, options = {}) {
 
 // finds the latest clause boundary that keeps the line within the limit, and returns -1 when none sits in its second half
 // a boundary inside a link, inline code or quotes is not a boundary
+// one inside parentheses is tried only when none fits outside them, since a line held by one parenthesis would otherwise break at a random word
 function findClauseBreak(line, maxLineLength, prefixLength) {
-  const fitting = breakCandidates(line.slice(prefixLength))
+  const outside = fittingBreak(line, maxLineLength, prefixLength, false);
+  return outside !== -1 ? outside : fittingBreak(line, maxLineLength, prefixLength, true);
+}
+
+function fittingBreak(line, maxLineLength, prefixLength, insideParens) {
+  const fitting = breakCandidates(line.slice(prefixLength), { insideParens })
     .map(candidate => ({ ...candidate, at: candidate.at + prefixLength }))
     .filter(candidate => {
       const head = line.slice(0, candidate.at).trimEnd();
