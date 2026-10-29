@@ -20,15 +20,15 @@ permissions:
 jobs:
   markup-lint:
     name: Markup
-    uses: devpro/github-workflow-parts/.github/workflows/reusable-markup-lint.yml@591b0c7bfba6fbc7b0cab7d896447e0732b819de
+    uses: devpro/github-workflow-parts/.github/workflows/reusable-markup-lint.yml@bf95c99bf5b5a0bc2d2991c81975488a16f16142
 
   test:
     name: "Test"
-    uses: devpro/github-workflow-parts/.github/workflows/reusable-node-quality.yml@591b0c7bfba6fbc7b0cab7d896447e0732b819de
+    uses: devpro/github-workflow-parts/.github/workflows/reusable-node-quality.yml@bf95c99bf5b5a0bc2d2991c81975488a16f16142
     with:
       # neatmd checks its own Markdown, its fixtures of malformed input left out.
       custom-tests: |
         rm -rf tests/fixtures/*.in.md
         node bin/cli.js --check .
       job-name: Test
-      workflow-parts-version: 591b0c7bfba6fbc7b0cab7d896447e0732b819de
+      workflow-parts-version: bf95c99bf5b5a0bc2d2991c81975488a16f16142
