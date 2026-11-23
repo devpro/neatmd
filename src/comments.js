@@ -47,6 +47,7 @@ export function breakCandidates(text, { words = false, insideParens = false } = 
   let inQuote = false;
   let inAngle = false;
 
+  let insideTag = false;
   const inlineDepth = new Map(INLINE_TAGS.map(tag => [tag, 0]));
   const tagPattern = new RegExp(`^<(/?)(${INLINE_TAGS.join('|')})[ >]`);
 
@@ -60,12 +61,15 @@ export function breakCandidates(text, { words = false, insideParens = false } = 
 
     if (c === '<') {
       const tag = tagPattern.exec(text.slice(i, i + 12));
-      if (tag) inlineDepth.set(tag[2], Math.max(0, inlineDepth.get(tag[2]) + (tag[1] ? -1 : 1)));
+      if (tag) {
+        inlineDepth.set(tag[2], Math.max(0, inlineDepth.get(tag[2]) + (tag[1] ? -1 : 1)));
+        insideTag = [...inlineDepth.values()].some(depth => depth > 0);
+      }
       if (/[A-Za-z/]/.test(text[i + 1] ?? '')) { inAngle = true; continue; }
     }
     if (c === '>' && inAngle) { inAngle = false; continue; }
     if (inAngle) continue;
-    if ([...inlineDepth.values()].some(depth => depth > 0)) continue;
+    if (insideTag) continue;
 
     if (c === '(') parens++;
     if (c === ')') parens = Math.max(0, parens - 1);
@@ -97,7 +101,10 @@ export function breakCandidates(text, { words = false, insideParens = false } = 
 
 // a colon closing a dotted or snake_case key, or followed by a literal, belongs to a key and value such as "enabled: false"
 function isKeyColon(text, i) {
-  return /[._]/.test(/\S*$/.exec(text.slice(0, i))[0]) || /^: (?:true|false|null|\d)/.test(text.slice(i));
+  // the key is read backwards from the colon, since a pattern anchored there would be tried from every position of the text
+  let start = i;
+  while (start > 0 && !/\s/.test(text[start - 1])) start--;
+  return /[._]/.test(text.slice(start, i)) || /^: (?:true|false|null|\d)/.test(text.slice(i));
 }
 
 // splits text into parts that each fit in room, or returns null when no safe break exists
@@ -128,25 +135,35 @@ function splitText(text, room) {
   return [text.slice(0, best.at).trimEnd(), ...tail];
 }
 
+// separates the text of a comment from the marker closing it at the end of the line, taken with the spaces before it
+// the suffix is null when the line does not end on the marker
+function readClosing(text, marker) {
+  const trimmed = text.trimEnd();
+  if (!trimmed.endsWith(marker)) return { body: trimmed, suffix: null };
+  const body = trimmed.slice(0, -marker.length).trimEnd();
+  return { body, suffix: trimmed.slice(body.length) };
+}
+
 // describes how one line is made of a prefix, the comment text and a suffix, or returns null for anything but comment text
 // the state tells which kind of multi line comment the line sits in
 function readCommentLine(line, state, style) {
   if (style === 'razor') {
     if (state.block === 'razor') {
-      const body = /^(\s*)(.*?)(\s*\*@)?\s*$/.exec(line);
-      if (body[3]) state.block = null;
-      if (!body[2] || /\*@/.test(body[2])) return null;
-      return { prefix: body[1], cont: body[1], text: body[2], suffix: body[3] ?? '' };
+      const lead = /^\s*/.exec(line)[0];
+      const { body, suffix } = readClosing(line.slice(lead.length), '*@');
+      if (suffix !== null) state.block = null;
+      if (!body || body.includes('*@')) return null;
+      return { prefix: lead, cont: lead, text: body, suffix: suffix ?? '' };
     }
 
     const open = /^(\s*)@\*\s?(.*)$/.exec(line);
     if (open) {
-      const close = /^(.*?)(\s*\*@)\s*$/.exec(open[2]);
-      if (!close) state.block = 'razor';
-      const text = close ? close[1] : open[2];
-      if (!text || /\*@/.test(text)) return null;
+      const { body, suffix } = readClosing(open[2], '*@');
+      if (suffix === null) state.block = 'razor';
+      const text = suffix === null ? open[2] : body;
+      if (!text || text.includes('*@')) return null;
       const lead = line.slice(0, line.indexOf('@*') + 2) + ' ';
-      return { prefix: lead, cont: open[1] + '   ', text, suffix: close ? close[2] : '' };
+      return { prefix: lead, cont: open[1] + '   ', text, suffix: suffix ?? '' };
     }
   }
 
@@ -160,9 +177,12 @@ function readCommentLine(line, state, style) {
     const slash = /^(\s*\/\/\/?\s?)/.exec(line);
     if (slash) return { prefix: slash[1], cont: slash[1], text: line.slice(slash[1].length), suffix: '' };
 
-    const single = /^(\s*)(\/\*\s?)(.*?)(\s*\*\/)\s*$/.exec(line);
-    if (single && !/\*\/|\/\*/.test(single[3])) {
-      return { prefix: single[1] + single[2], cont: single[1] + '   ', text: single[3], suffix: single[4] };
+    const single = /^(\s*)(\/\*\s?)(.*)$/.exec(line);
+    if (single) {
+      const { body, suffix } = readClosing(single[3], '*/');
+      if (suffix !== null && !/\*\/|\/\*/.test(body)) {
+        return { prefix: single[1] + single[2], cont: single[1] + '   ', text: body, suffix };
+      }
     }
 
     if (/^\s*\/\*(?!.*\*\/)/.test(line)) state.block = 'c';

@@ -1,3 +1,5 @@
+import { readFence } from './formatter.js';
+
 // lists the lines of a formatted document that stay over the limit, which are those it has no right place to cut: table rows and headings
 // front matter and fenced code are copied verbatim, and a line whose overflow holds no space is left whole on purpose, so none of them is listed
 export function findLongLines(content, maxLineLength) {
@@ -12,14 +14,14 @@ export function findLongLines(content, maxLineLength) {
 
   for (; i < lines.length; i++) {
     const line = lines[i];
-    const marker = line.match(/^\s*(`{3,}|~{3,})(.*)$/);
+    const marker = readFence(line);
 
     if (fence) {
-      if (marker?.[1].startsWith(fence) && marker[2].trim() === '') fence = null;
+      if (marker?.marker.startsWith(fence) && marker.info.trim() === '') fence = null;
       continue;
     }
     if (marker) {
-      fence = marker[1];
+      fence = marker.marker;
       continue;
     }
 

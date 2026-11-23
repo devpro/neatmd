@@ -27,9 +27,10 @@ const BLOCK_TAGS = new Set([
   'summary', 'table', 'tbody', 'td', 'tfoot', 'th', 'thead', 'title', 'tr', 'track', 'ul'
 ]);
 
-function readFence(line) {
-  const match = line.trim().match(/^(`{3,}|~{3,})(.*)$/);
-  return match ? { marker: match[1], info: match[2] } : null;
+export function readFence(line) {
+  const text = line.trim();
+  const marker = /^(?:`{3,}|~{3,})/.exec(text)?.[0];
+  return marker ? { marker, info: text.slice(marker.length) } : null;
 }
 
 // reads the start of an HTML block, whose content is not Markdown and is never touched
@@ -244,7 +245,8 @@ export function formatMarkdown(content, options = {}) {
                 break;
               }
             }
-            pos = substring.lastIndexOf(p, pos - 1);
+            // a negative start is read as 0, which would find a match at the start of the line forever
+            pos = pos > 0 ? substring.lastIndexOf(p, pos - 1) : -1;
           }
         }
 
@@ -305,7 +307,7 @@ export function formatMarkdown(content, options = {}) {
 
   // strips trailing empty lines and appends exactly one EOF newline
   // a document holding no content stays empty, since that newline would read as a second line
-  const formatted = output.join('\n').replace(/\n+$/, '');
+  const formatted = output.slice(0, output.findLastIndex(line => line !== '') + 1).join('\n');
   return formatted === '' ? '' : formatted + '\n';
 }
 
@@ -335,8 +337,11 @@ function fittingBreak(line, maxLineLength, prefixLength, insideParens) {
 }
 
 // a line opening on one of these starts a list item, a heading, a quote, a fence or a setext underline instead of continuing the paragraph
+const BLOCK_OPENERS = [/^(?:[-*+]|\d{1,9}[.)])(?:\s|$)/, /^#{1,6}(?:\s|$)/, /^(?:>|`{3}|~{3})/, /^[-=]+\s*$/];
+
 function opensBlock(text) {
-  return /^(?:(?:[-*+]|\d{1,9}[.)])(?:\s|$)|#{1,6}(?:\s|$)|>|`{3,}|~{3,}|[-=]+\s*$)/.test(text.trimStart());
+  const start = text.trimStart();
+  return BLOCK_OPENERS.some(opener => opener.test(start));
 }
 
 function formatTable(tableLines) {

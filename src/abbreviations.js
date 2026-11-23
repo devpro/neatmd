@@ -28,6 +28,12 @@ const forms = new Set(FORMS);
 
 // tells whether the full stop ending the text closes an abbreviation or an initial rather than a sentence
 export function endsOnAbbreviation(text) {
-  const word = /(?:^|[^A-Za-z])([A-Za-z]+)\.$/.exec(text);
-  return Boolean(word) && (word[1].length === 1 || forms.has(word[1]));
+  if (!text.endsWith('.')) return false;
+
+  // the word is read backwards from its end, since a pattern anchored there would be tried from every position of the text
+  const end = text.length - 1;
+  let start = end;
+  while (start > 0 && /[A-Za-z]/.test(text[start - 1])) start--;
+  const word = text.slice(start, end);
+  return word.length === 1 || forms.has(word);
 }
