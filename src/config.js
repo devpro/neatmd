@@ -9,10 +9,10 @@ function sectionMatcher(pattern) {
   if (pattern.includes('/')) return () => false;
 
   const source = pattern
-    .replace(/[.+^$()|\\[\]]/g, '\\$&')
-    .replace(/\*/g, '[^/]*')
-    .replace(/\?/g, '[^/]')
-    .replace(/\{([^}]*)\}/g, (_, list) => `(?:${list.split(',').join('|')})`);
+    .replace(/[.+^$()|\\[\]]/g, String.raw`\$&`)
+    .replaceAll('*', '[^/]*')
+    .replaceAll('?', '[^/]')
+    .replace(/\{([^}]*)\}/g, (_, list) => `(?:${list.replaceAll(',', '|')})`);
   const regex = new RegExp(`^${source}$`);
   return name => regex.test(name);
 }
@@ -20,7 +20,7 @@ function sectionMatcher(pattern) {
 function isRoot(configPath) {
   for (let line of fs.readFileSync(configPath, 'utf8').split(/\r?\n/)) {
     line = line.trim();
-    if (/^\[/.test(line)) return false;
+    if (line.startsWith('[')) return false;
     if (/^root\s*=\s*true\s*$/i.test(line)) return true;
   }
   return false;
@@ -65,7 +65,7 @@ export function loadConfig(configPaths, filePath = 'file.md') {
         inSection = sectionMatcher(section[1])(name);
       } else if (inSection) {
         const match = line.match(/^max_line_length\s*=\s*(\d+)/);
-        if (match) maxLineLength = parseInt(match[1], 10);
+        if (match) maxLineLength = Number.parseInt(match[1], 10);
       }
     }
   }

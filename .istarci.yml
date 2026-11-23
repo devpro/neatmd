@@ -1,8 +1,12 @@
 runner:
   image: ghcr.io/devpro/ubuntu-node:latest
+  sonarqube:
+    gate: true
+    profile: Sonar way comprehensive
+    projects:
+      - neatmd
 
 workflow:
-  # The global default only warns, and the list below is complete for this repository, so an action outside it stops the run.
   onDisallowedAction: fail
   allowedActions:
     - actions/*
@@ -10,3 +14,7 @@ workflow:
     - devpro/github-workflow-parts/*
   exclude:
     - pkg.yml
+
+vars:
+  SONAR_ORG: local
+  SONAR_PROJECT_KEY: neatmd

@@ -21,7 +21,7 @@ const STYLE_BY_EXTENSION = {
 };
 
 // generated and vendored output is never edited
-const GENERATED = /\.min\.|\.map$/;
+const GENERATED = /(?:\.min\.)|(?:\.map$)/;
 
 // elements that wrap running text inside a comment, which a break must not cross
 const INLINE_TAGS = ['c', 'i', 'b', 'em', 'strong', 'code'];
@@ -37,67 +37,102 @@ export function defaultCommentLength() {
   return DEFAULT_COMMENT_LENGTH;
 }
 
+const INLINE_TAG = new RegExp(`^<(/?)(${INLINE_TAGS.join('|')})[ >]`);
+const CLAUSE_START = new RegExp(String.raw`^, (${CLAUSE_WORDS})\b`);
+
 // finds where a comment line may be broken, ranked from the most natural break to the least
 // a plain space is a candidate only when asked for, as the last resort of a text with no other boundary
 // a boundary inside parentheses is one only when asked for, for a line held by a parenthesis from start to end
 export function breakCandidates(text, { words = false, insideParens = false } = {}) {
   const result = [];
-  let parens = 0;
-  let inTick = false;
-  let inQuote = false;
-  let inAngle = false;
-
-  const inlineDepth = new Map(INLINE_TAGS.map(tag => [tag, 0]));
-  const tagPattern = new RegExp(`^<(/?)(${INLINE_TAGS.join('|')})[ >]`);
+  const state = { parens: 0, inTick: false, inQuote: false, inAngle: false, insideTag: false, depths: new Map(INLINE_TAGS.map(tag => [tag, 0])) };
 
   for (let i = 0; i < text.length; i++) {
-    const c = text[i];
+    if (isProtected(text, i, state)) continue;
 
-    if (c === '`') { inTick = !inTick; continue; }
-    if (inTick) continue;
-    if (c === '"') { inQuote = !inQuote; continue; }
-    if (inQuote) continue;
+    if (text[i] === '(') state.parens++;
+    if (text[i] === ')') state.parens = Math.max(0, state.parens - 1);
+    if (state.parens > 0 && !insideParens) continue;
 
-    if (c === '<') {
-      const tag = tagPattern.exec(text.slice(i, i + 12));
-      if (tag) inlineDepth.set(tag[2], Math.max(0, inlineDepth.get(tag[2]) + (tag[1] ? -1 : 1)));
-      if (/[A-Za-z/]/.test(text[i + 1] ?? '')) { inAngle = true; continue; }
-    }
-    if (c === '>' && inAngle) { inAngle = false; continue; }
-    if (inAngle) continue;
-    if ([...inlineDepth.values()].some(depth => depth > 0)) continue;
-
-    if (c === '(') parens++;
-    if (c === ')') parens = Math.max(0, parens - 1);
-    if (parens > 0 && !insideParens) continue;
-
-    const rest = text.slice(i);
-    if ('.!?'.includes(c) && text[i + 1] === ' ' && /[A-Z0-9`'"]/.test(text[i + 2] ?? '') && !(c === '.' && endsOnAbbreviation(text.slice(0, i + 1)))) {
-      result.push({ at: i + 2, rank: 0 });
-    } else if (c === ';' && text[i + 1] === ' ') {
-      result.push({ at: i + 2, rank: 1 });
-    } else if (c === ':' && text[i + 1] === ' ' && i > 10 && !isKeyColon(text, i)) {
-      result.push({ at: i + 2, rank: 2 });
-    } else if (c === ',' && new RegExp(`^, (${CLAUSE_WORDS})\\b`).test(rest)) {
-      result.push({ at: i + 2, rank: 2 });
-    } else if (c === ' ' && /^ [\u2013\u2014] /.test(rest)) {
-      // the dash ends the line, since a continuation opening on a dash reads as a list item
-      result.push({ at: i + 3, rank: 2 });
-    } else if (c === ' ' && text[i - 1] !== ',' && /^ (so|and|but|which|since|because|while|where|when|instead of|rather than) /.test(rest)) {
-      result.push({ at: i + 1, rank: 4 });
-    } else if (c === ',' && text[i + 1] === ' ') {
-      result.push({ at: i + 2, rank: 3 });
-    } else if (words && c === ' ' && text[i + 1] !== ' ' && !/^ (?:[-*+]|\d+[.)])\s/.test(rest)) {
-      result.push({ at: i + 1, rank: 5 });
-    }
+    const candidate = boundaryAt(text, i, words);
+    if (candidate) result.push(candidate);
   }
 
   return result;
 }
 
+// tells whether a character sits inside inline code, quotes, a tag or the text of an inline element, and moves the state past it
+function isProtected(text, i, state) {
+  const c = text[i];
+
+  if (c === '`') { state.inTick = !state.inTick; return true; }
+  if (state.inTick) return true;
+  if (c === '"') { state.inQuote = !state.inQuote; return true; }
+  if (state.inQuote) return true;
+  return isInsideAngle(text, i, state) || state.insideTag;
+}
+
+function isInsideAngle(text, i, state) {
+  if (text[i] === '<') {
+    trackInlineTag(text.slice(i, i + 12), state);
+    if (/[A-Za-z/]/.test(text[i + 1] ?? '')) state.inAngle = true;
+  } else if (text[i] === '>' && state.inAngle) {
+    state.inAngle = false;
+    return true;
+  }
+  return state.inAngle;
+}
+
+function trackInlineTag(text, state) {
+  const tag = INLINE_TAG.exec(text);
+  if (!tag) return;
+  state.depths.set(tag[2], Math.max(0, state.depths.get(tag[2]) + (tag[1] ? -1 : 1)));
+  state.insideTag = [...state.depths.values()].some(depth => depth > 0);
+}
+
+function boundaryAt(text, i, words) {
+  const c = text[i];
+  if (c === ' ') return spaceBoundary(text, i, words);
+  if (text[i + 1] !== ' ') return null;
+
+  switch (c) {
+    case '.':
+    case '!':
+    case '?':
+      return endsSentence(text, i) ? { at: i + 2, rank: 0 } : null;
+    case ';':
+      return { at: i + 2, rank: 1 };
+    case ':':
+      return i > 10 && !isKeyColon(text, i) ? { at: i + 2, rank: 2 } : null;
+    case ',':
+      return { at: i + 2, rank: CLAUSE_START.test(text.slice(i)) ? 2 : 3 };
+    default:
+      return null;
+  }
+}
+
+function endsSentence(text, i) {
+  return /[A-Z0-9`'"]/.test(text[i + 2] ?? '') && !(text[i] === '.' && endsOnAbbreviation(text.slice(0, i + 1)));
+}
+
+function spaceBoundary(text, i, words) {
+  const rest = text.slice(i);
+
+  // the dash ends the line, since a continuation opening on a dash reads as a list item
+  if (/^ [–—] /.test(rest)) return { at: i + 3, rank: 2 };
+  if (text[i - 1] !== ',' && /^ (so|and|but|which|since|because|while|where|when|instead of|rather than) /.test(rest)) {
+    return { at: i + 1, rank: 4 };
+  }
+  if (words && text[i + 1] !== ' ' && !/^ (?:[-*+]|\d+[.)])\s/.test(rest)) return { at: i + 1, rank: 5 };
+  return null;
+}
+
 // a colon closing a dotted or snake_case key, or followed by a literal, belongs to a key and value such as "enabled: false"
 function isKeyColon(text, i) {
-  return /[._]/.test(/\S*$/.exec(text.slice(0, i))[0]) || /^: (?:true|false|null|\d)/.test(text.slice(i));
+  // the key is read backwards from the colon, since a pattern anchored there would be tried from every position of the text
+  let start = i;
+  while (start > 0 && !/\s/.test(text[start - 1])) start--;
+  return /[._]/.test(text.slice(start, i)) || /^: (?:true|false|null|\d)/.test(text.slice(i));
 }
 
 // splits text into parts that each fit in room, or returns null when no safe break exists
@@ -128,47 +163,67 @@ function splitText(text, room) {
   return [text.slice(0, best.at).trimEnd(), ...tail];
 }
 
+// separates the text of a comment from the marker closing it at the end of the line, taken with the spaces before it
+// the suffix is null when the line does not end on the marker
+function readClosing(text, marker) {
+  const trimmed = text.trimEnd();
+  if (!trimmed.endsWith(marker)) return { body: trimmed, suffix: null };
+  const body = trimmed.slice(0, -marker.length).trimEnd();
+  return { body, suffix: trimmed.slice(body.length) };
+}
+
 // describes how one line is made of a prefix, the comment text and a suffix, or returns null for anything but comment text
 // the state tells which kind of multi line comment the line sits in
 function readCommentLine(line, state, style) {
+  if (style === 'hash') return readHashLine(line);
   if (style === 'razor') {
-    if (state.block === 'razor') {
-      const body = /^(\s*)(.*?)(\s*\*@)?\s*$/.exec(line);
-      if (body[3]) state.block = null;
-      if (!body[2] || /\*@/.test(body[2])) return null;
-      return { prefix: body[1], cont: body[1], text: body[2], suffix: body[3] ?? '' };
-    }
-
+    if (state.block === 'razor') return readRazorBlockLine(line, state);
     const open = /^(\s*)@\*\s?(.*)$/.exec(line);
-    if (open) {
-      const close = /^(.*?)(\s*\*@)\s*$/.exec(open[2]);
-      if (!close) state.block = 'razor';
-      const text = close ? close[1] : open[2];
-      if (!text || /\*@/.test(text)) return null;
-      const lead = line.slice(0, line.indexOf('@*') + 2) + ' ';
-      return { prefix: lead, cont: open[1] + '   ', text, suffix: close ? close[2] : '' };
+    if (open) return readRazorOpening(line, open, state);
+  }
+  return readSlashLine(line, state);
+}
+
+function readRazorBlockLine(line, state) {
+  const lead = /^\s*/.exec(line)[0];
+  const { body, suffix } = readClosing(line.slice(lead.length), '*@');
+  if (suffix !== null) state.block = null;
+  if (!body || body.includes('*@')) return null;
+  return { prefix: lead, cont: lead, text: body, suffix: suffix ?? '' };
+}
+
+function readRazorOpening(line, open, state) {
+  const { body, suffix } = readClosing(open[2], '*@');
+  if (suffix === null) state.block = 'razor';
+  const text = suffix === null ? open[2] : body;
+  if (!text || text.includes('*@')) return null;
+  const lead = line.slice(0, line.indexOf('@*') + 2) + ' ';
+  return { prefix: lead, cont: open[1] + '   ', text, suffix: suffix ?? '' };
+}
+
+function readSlashLine(line, state) {
+  if (state.block === 'c') {
+    if (/\*\//.test(line)) state.block = null;
+    const star = /^(\s*\*\s?)(?!\/)/.exec(line);
+    return star ? { prefix: star[1], cont: star[1], text: line.slice(star[1].length), suffix: '' } : null;
+  }
+
+  const slash = /^(\s*\/\/\/?\s?)/.exec(line);
+  if (slash) return { prefix: slash[1], cont: slash[1], text: line.slice(slash[1].length), suffix: '' };
+
+  const single = /^(\s*)(\/\*\s?)(.*)$/.exec(line);
+  if (single) {
+    const { body, suffix } = readClosing(single[3], '*/');
+    if (suffix !== null && !/\*\/|\/\*/.test(body)) {
+      return { prefix: single[1] + single[2], cont: single[1] + '   ', text: body, suffix };
     }
   }
 
-  if (style === 'slash' || style === 'razor') {
-    if (state.block === 'c') {
-      if (/\*\//.test(line)) state.block = null;
-      const star = /^(\s*\*\s?)(?!\/)/.exec(line);
-      return star ? { prefix: star[1], cont: star[1], text: line.slice(star[1].length), suffix: '' } : null;
-    }
+  if (/^\s*\/\*(?!.*\*\/)/.test(line)) state.block = 'c';
+  return null;
+}
 
-    const slash = /^(\s*\/\/\/?\s?)/.exec(line);
-    if (slash) return { prefix: slash[1], cont: slash[1], text: line.slice(slash[1].length), suffix: '' };
-
-    const single = /^(\s*)(\/\*\s?)(.*?)(\s*\*\/)\s*$/.exec(line);
-    if (single && !/\*\/|\/\*/.test(single[3])) {
-      return { prefix: single[1] + single[2], cont: single[1] + '   ', text: single[3], suffix: single[4] };
-    }
-
-    if (/^\s*\/\*(?!.*\*\/)/.test(line)) state.block = 'c';
-    return null;
-  }
-
+function readHashLine(line) {
   const hash = /^(\s*#(?!!)\s?)/.exec(line);
   if (!hash) return null;
 

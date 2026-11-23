@@ -11,18 +11,18 @@ const CONFIG_NAMES = [
   '.markdownlint-cli2.yaml'
 ];
 
-const RULE = '["\']?(?:MD013|line-length)["\']?[ \\t]*:';
-const FLOW_RULE = new RegExp(`${RULE}\\s*\\{([^{}]*)\\}`, 'i');
-const BLOCK_RULE = new RegExp(`^([ \\t]*)${RULE}[ \\t]*\\n((?:\\1[ \\t]+.*\\n|[ \\t]*\\n)+)`, 'im');
+const RULE = String.raw`["']?(?:MD013|line-length)["']?[ \t]*:`;
+const FLOW_RULE = new RegExp(String.raw`${RULE}\s*\{([^{}]*)\}`, 'i');
+const BLOCK_RULE = new RegExp(String.raw`^([ \t]*)${RULE}[ \t]*\n((?:\1[ \t]+.*\n|[ \t]*\n)+)`, 'im');
 
 // reads one number out of JSON or YAML by its shape: a YAML parser would be the first dependency of the package, for a warning
 function readLength(configPath) {
   const text = fs.readFileSync(configPath, 'utf-8')
-    .replace(/\r\n/g, '\n')
+    .replaceAll('\r\n', '\n')
     .replace(/(^|\s)(?:#|\/\/).*$/gm, '$1') + '\n';
-  const body = text.match(FLOW_RULE)?.[1] ?? text.match(BLOCK_RULE)?.[2] ?? '';
-  const length = body.match(/(?<!\w)line_length["']?\s*:\s*(\d+)/);
-  return length ? parseInt(length[1], 10) : null;
+  const body = FLOW_RULE.exec(text)?.[1] ?? BLOCK_RULE.exec(text)?.[2] ?? '';
+  const length = /(?<!\w)line_length["']?\s*:\s*(\d+)/.exec(body);
+  return length ? Number.parseInt(length[1], 10) : null;
 }
 
 // finds the length the closest markdownlint configuration gives, up to the root of the repository

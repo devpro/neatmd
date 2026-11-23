@@ -1,4 +1,5 @@
 import { test } from 'node:test';
+import { execFileSync } from 'node:child_process';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { formatMarkdown } from '../src/index.js';
@@ -425,3 +426,15 @@ test('prefers a boundary outside parentheses to one inside them', () => {
 
   assert.equal(first, 'The first clause of this sentence is long enough to need a break,');
 });
+
+// a line that is never finished would block the test runner, so each one is formatted in a process of its own
+for (const opening of ['; # ', ': - ', '. > ']) {
+  test(`finishes a long line opening on "${opening}"`, () => {
+    const input = opening + 'word '.repeat(60).trim() + '\n';
+    const script = `import { formatMarkdown } from ${JSON.stringify(new URL('../src/formatter.js', import.meta.url).href)};
+      process.stdout.write(formatMarkdown(${JSON.stringify(input)}, 240));`;
+    const result = execFileSync(process.execPath, ['--input-type=module', '-e', script], { encoding: 'utf-8', timeout: 5000 });
+
+    assert.equal(result.replace(/\s+/g, ' '), input.replace(/\s+/g, ' '));
+  });
+}

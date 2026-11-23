@@ -193,3 +193,29 @@ test('leaves a commented-out line carrying its own trailing comment alone', () =
   assert.equal(content, input);
   assert.equal(stuck.length, 0);
 });
+
+test('splits a comment holding thousands of colons in reasonable time', () => {
+  const start = Date.now();
+  const { split } = splitComments('// ' + 'a: '.repeat(4000) + '\n', LIMIT, 'slash');
+  const elapsed = Date.now() - start;
+
+  assert.equal(split, 1);
+  assert.ok(elapsed < 2000, `splitting took ${elapsed} ms`);
+});
+
+test('reads the colon of a key as part of the key, wherever the key starts', () => {
+  const colons = text => breakCandidates(text).filter(candidate => candidate.rank === 2).map(candidate => candidate.at);
+
+  assert.deepEqual(colons('some.long.key: value'), []);
+  assert.deepEqual(colons('a first\tsnake_key: value'), []);
+  assert.deepEqual(colons('some.key then plain: value'), [21]);
+});
+
+test('splits a comment holding thousands of abbreviations in reasonable time', () => {
+  const start = Date.now();
+  const { split } = splitComments('// ' + 'etc. A '.repeat(2000) + '\n', LIMIT, 'slash');
+  const elapsed = Date.now() - start;
+
+  assert.equal(split, 1);
+  assert.ok(elapsed < 2000, `splitting took ${elapsed} ms`);
+});
