@@ -31,4 +31,12 @@ jobs:
         rm -rf tests/fixtures/*.in.md
         node bin/cli.js --check .
       job-name: Test
+      sonar-enabled: true
+      sonar-host-url: ${{ vars.SONAR_HOST_URL || 'https://sonarcloud.io' }}
+      sonar-organization: ${{ vars.SONAR_ORG }}
+      sonar-project-key: ${{ vars.SONAR_PROJECT_KEY }}
+      sonar-project-name: neatmd
+      test-script: test:coverage
       workflow-parts-version: 398cf79719f90e41e3407bc9f060e297629d800d
+    secrets:
+      sonar-token: ${{ secrets.SONAR_TOKEN }}

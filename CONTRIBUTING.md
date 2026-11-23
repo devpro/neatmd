@@ -71,4 +71,20 @@ cd ~ && npx --prefer-online neatmd@0.1.4 repos/<my-repo>/
 
 Pipelines are running in GitHub.
 
+The Test job analyzes the code on [SonarCloud](https://sonarcloud.io), from `sonar-project.properties` and the settings of the GitHub repository:
+
+Setting             | Kind     | Value
+--------------------|----------|--------------------------------------------
+`SONAR_ORG`         | Variable | SonarCloud organization
+`SONAR_PROJECT_KEY` | Variable | SonarCloud project key
+`SONAR_HOST_URL`    | Variable | Optional, `https://sonarcloud.io` if absent
+`SONAR_TOKEN`       | Secret   | Token of the SonarCloud organization
+
+IstarCI runs the same analysis against its local SonarQube, and fails the run when the quality gate fails:
+
+```bash
+istarci wait               # the result of the run of the last commit
+istarci sonarqube report   # why the quality gate failed
+```
+
 NPM package has been configured to use [Trusted publishing with OIDC](https://docs.npmjs.com/trusted-publishers) with GitHub.
