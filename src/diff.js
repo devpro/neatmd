@@ -61,7 +61,7 @@ function compare(before, after) {
 
 // keeps the newline in each line, so that a missing final newline is a difference as any other
 function toLines(content) {
-  return content.match(/[^\n]*\n|[^\n]+$/g) ?? [];
+  return content.match(/[^\n]*\n|(?:[^\n]+$)/g) ?? [];
 }
 
 // returns the hunks of a unified diff, and an empty text when nothing differs

@@ -21,7 +21,7 @@ const STYLE_BY_EXTENSION = {
 };
 
 // generated and vendored output is never edited
-const GENERATED = /\.min\.|\.map$/;
+const GENERATED = /(?:\.min\.)|(?:\.map$)/;
 
 // elements that wrap running text inside a comment, which a break must not cross
 const INLINE_TAGS = ['c', 'i', 'b', 'em', 'strong', 'code'];
@@ -78,7 +78,7 @@ export function breakCandidates(text, { words = false, insideParens = false } = 
       result.push({ at: i + 2, rank: 1 });
     } else if (c === ':' && text[i + 1] === ' ' && i > 10 && !isKeyColon(text, i)) {
       result.push({ at: i + 2, rank: 2 });
-    } else if (c === ',' && new RegExp(`^, (${CLAUSE_WORDS})\\b`).test(rest)) {
+    } else if (c === ',' && new RegExp(String.raw`^, (${CLAUSE_WORDS})\b`).test(rest)) {
       result.push({ at: i + 2, rank: 2 });
     } else if (c === ' ' && /^ [\u2013\u2014] /.test(rest)) {
       // the dash ends the line, since a continuation opening on a dash reads as a list item

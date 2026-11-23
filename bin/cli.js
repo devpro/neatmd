@@ -78,12 +78,10 @@ try {
       console.log('✔ All files are properly formatted!');
       process.exit(0);
     }
-  } else {
-    if (modifiedCount === 0) {
-      console.log('All files are already neat!');
-    } else if (hasDirectory || targets.length > 1) {
-      console.log(`\nDone! Formatted ${modifiedCount} file(s).`);
-    }
+  } else if (modifiedCount === 0) {
+    console.log('All files are already neat!');
+  } else if (hasDirectory || targets.length > 1) {
+    console.log(`\nDone! Formatted ${modifiedCount} file(s).`);
   }
 } catch (error) {
   console.error(`✖ Error: ${error.message}`);

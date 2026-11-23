@@ -15,7 +15,7 @@ export function findLongLines(content, maxLineLength) {
     const marker = line.match(/^\s*(`{3,}|~{3,})(.*)$/);
 
     if (fence) {
-      if (marker && marker[1].startsWith(fence) && marker[2].trim() === '') fence = null;
+      if (marker?.[1].startsWith(fence) && marker[2].trim() === '') fence = null;
       continue;
     }
     if (marker) {

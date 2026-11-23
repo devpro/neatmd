@@ -27,6 +27,41 @@ const BLOCK_TAGS = new Set([
   'summary', 'table', 'tbody', 'td', 'tfoot', 'th', 'thead', 'title', 'tr', 'track', 'ul'
 ]);
 
+function readFence(line) {
+  const match = line.trim().match(/^(`{3,}|~{3,})(.*)$/);
+  return match ? { marker: match[1], info: match[2] } : null;
+}
+
+// reads the start of an HTML block, whose content is not Markdown and is never touched
+// a line opening on an autolink such as <https://example.com> is text, since a tag name is never followed by a colon
+function readHtmlStart(line, afterText) {
+  const text = line.trimStart();
+  if (text.startsWith('<!--')) return { end: /-->/, rest: text.slice(4) };
+
+  // these elements may hold blank lines, so only their closing tag ends them
+  const raw = text.match(/^<(pre|script|style|textarea)(?=[\s>]|$)/i);
+  if (raw) return { end: new RegExp(`</${raw[1]}>`, 'i'), rest: text.slice(raw[0].length) };
+
+  // only a block level element interrupts a paragraph, any other tag right after text is inline HTML within it
+  const tag = text.match(/^<\/?([A-Za-z][A-Za-z0-9-]*)(?=[\s/>]|$)/);
+  if (tag && (!afterText || BLOCK_TAGS.has(tag[1].toLowerCase()))) return { end: 'blank' };
+  return null;
+}
+
+function isSeparatorLine(line) {
+  return line.includes('|') && line.includes('-') && line.replace(/[:\-|\s]/g, '') === '';
+}
+
+// a table is broken by the beginning of another block level structure, whatever pipes that line happens to contain
+function startsNewBlock(line) {
+  return /^\s*(#|>|(?:[-*+]|\d+[.)])\s|```|~~~)/.test(line);
+}
+
+// a row may open on a list marker, such as "1. The cluster | runs", so only the blocks that cannot be a cell end it
+function endsTable(line) {
+  return /^\s*(#|>|```|~~~)/.test(line);
+}
+
 export function formatMarkdown(content, options = {}) {
   const maxLineLength = typeof options === 'number'
     ? options
@@ -38,11 +73,6 @@ export function formatMarkdown(content, options = {}) {
   // holds the marker of the fenced block being crossed, such as "```" or "~~~~", and null outside of any block
   let openFence = null;
 
-  function readFence(line) {
-    const match = line.trim().match(/^(`{3,}|~{3,})(.*)$/);
-    return match ? { marker: match[1], info: match[2] } : null;
-  }
-
   // a fence is closed by at least as many of the same character, with nothing but spaces after it
   function closesFence(fence) {
     return fence.marker[0] === openFence[0]
@@ -52,36 +82,6 @@ export function formatMarkdown(content, options = {}) {
 
   // holds what ends the HTML being crossed: a pattern for a comment or a raw text element, 'blank' for any other block, and null outside of HTML
   let htmlEnd = null;
-
-  // reads the start of an HTML block, whose content is not Markdown and is never touched
-  // a line opening on an autolink such as <https://example.com> is text, since a tag name is never followed by a colon
-  function readHtmlStart(line, afterText) {
-    const text = line.trimStart();
-    if (text.startsWith('<!--')) return { end: /-->/, rest: text.slice(4) };
-
-    // these elements may hold blank lines, so only their closing tag ends them
-    const raw = text.match(/^<(pre|script|style|textarea)(?=[\s>]|$)/i);
-    if (raw) return { end: new RegExp(`</${raw[1]}>`, 'i'), rest: text.slice(raw[0].length) };
-
-    // only a block level element interrupts a paragraph, any other tag right after text is inline HTML within it
-    const tag = text.match(/^<\/?([A-Za-z][A-Za-z0-9-]*)(?=[\s/>]|$)/);
-    if (tag && (!afterText || BLOCK_TAGS.has(tag[1].toLowerCase()))) return { end: 'blank' };
-    return null;
-  }
-
-  function isSeparatorLine(line) {
-    return line.includes('|') && line.includes('-') && line.replace(/[:\-|\s]/g, '') === '';
-  }
-
-  // a table is broken by the beginning of another block level structure, whatever pipes that line happens to contain
-  function startsNewBlock(line) {
-    return /^\s*(#|>|(?:[-*+]|\d+[.)])\s|```|~~~)/.test(line);
-  }
-
-  // a row may open on a list marker, such as "1. The cluster | runs", so only the blocks that cannot be a cell end it
-  function endsTable(line) {
-    return /^\s*(#|>|```|~~~)/.test(line);
-  }
 
   let i = 0;
 
@@ -486,7 +486,7 @@ function isInsideQuotesOrCode(text, index) {
   return index >= 0 && index < positions.length && positions[index] === 1;
 }
 
-const LINK = /!?\[(?:[^\[\]]|!?\[[^\]]*\](?:\([^)]*\))?)*\](?:\([^)]*\))?/g;
+const LINK = /!?\[(?:[^[\]]|!?\[[^\]]*\](?:\([^)]*\))?)*\](?:\([^)]*\))?/g;
 
 let linkedText = null;
 let linkSpans = null;
@@ -500,7 +500,7 @@ function isInsideLink(text, index) {
   return linkSpans.some(([from, to]) => index >= from && index < to);
 }
 
-const INLINE_SPAN = /(`+)[\s\S]*?\1|(?<![\w*])(\*\*?)(?=\S)[^*]+?(?<=\S)\2(?![\w*])|(?<![\w_])(__?)(?=\S)[^_]+?(?<=\S)\3(?![\w_])/g;
+const INLINE_SPAN = /(`+)[\s\S]*?\1|(?<![\w*])(\*\*?)(?=\S)[^*]+?(?<=\S)\2(?![\w*])|(?<!\w)(__?)(?=\S)[^_]+?(?<=\S)\3(?!\w)/g;
 
 let spannedText = null;
 let inlineSpans = null;

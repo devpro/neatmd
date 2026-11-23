@@ -68,7 +68,7 @@ function warnLengthMismatch(filePath, maxLineLength) {
 
 function reportDiff(filePath, content, formatted) {
   // a change of line endings makes every line differ, which would hide the changes of the text
-  const toUnix = text => text.replace(/\r\n/g, '\n');
+  const toUnix = text => text.replaceAll('\r\n', '\n');
   if (content.includes('\r\n') && !formatted.includes('\r\n')) {
     console.log('Line endings: CRLF, written as LF');
   }
