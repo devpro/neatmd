@@ -1,11 +1,12 @@
 gitignore: true
 ignores:
-  - "**/node_modules/**"
-  - "**/tests/fixtures/*.in.md"
-  - "**/tests/fixtures/table-break.out.md"
+  - "tests/fixtures/*.in.md"
+  - "tests/fixtures/table-break.out.md"
   - "CLAUDE.md"
 config:
   default: true
+  MD010:
+    code_blocks: false
   MD013:
     line_length: 240
   MD025: false

@@ -4,6 +4,9 @@ import { execFileSync } from 'node:child_process';
 import { formatMarkdown } from './formatter.js';
 import { loadConfig, findConfigFiles } from './config.js';
 import { splitComments, commentStyleOf } from './comments.js';
+import { unifiedDiff } from './diff.js';
+import { findLongLines } from './length.js';
+import { findMarkdownlintLength } from './markdownlint.js';
 
 const DEFAULT_IGNORED_DIRS = new Set([
   'node_modules',
@@ -50,6 +53,31 @@ function gitIgnoredEntries(dirPath, names) {
   }
 }
 
+// one warning per configuration and length, as a run would otherwise repeat it for every file
+const warnedLengths = new Set();
+
+function warnLengthMismatch(filePath, maxLineLength) {
+  const markdownlint = findMarkdownlintLength(path.dirname(path.resolve(filePath)));
+  if (markdownlint === null || markdownlint.length === maxLineLength) return;
+
+  const message = `⚠ Line length differs: ${maxLineLength} in .editorconfig, ${markdownlint.length} in ${markdownlint.configPath}`;
+  if (warnedLengths.has(message)) return;
+  warnedLengths.add(message);
+  console.warn(message);
+}
+
+function reportDiff(filePath, content, formatted) {
+  // a change of line endings makes every line differ, which would hide the changes of the text
+  const toUnix = text => text.replace(/\r\n/g, '\n');
+  if (content.includes('\r\n') && !formatted.includes('\r\n')) {
+    console.log('Line endings: CRLF, written as LF');
+  }
+  const diff = unifiedDiff(toUnix(content), toUnix(formatted));
+  if (diff !== '') {
+    console.log(`--- ${filePath}\toriginal\n+++ ${filePath}\tformatted\n${diff.slice(0, -1)}`);
+  }
+}
+
 export function processFile(filePath, options = {}) {
   const content = fs.readFileSync(filePath, 'utf-8');
 
@@ -65,6 +93,7 @@ export function processFile(filePath, options = {}) {
     result.stuck.forEach(item => console.warn(`⚠ No safe break: ${filePath}:${item.line}: ${item.text}`));
     formatted = result.content;
   } else {
+    if (options.maxLineLength === undefined) warnLengthMismatch(filePath, maxLineLength);
     formatted = formatMarkdown(content, { ...options, maxLineLength });
   }
   const isModified = content !== formatted;
@@ -72,6 +101,14 @@ export function processFile(filePath, options = {}) {
   if (options.check) {
     if (isModified) {
       console.log(`✖ Needs formatting: ${filePath}`);
+      reportDiff(filePath, content, formatted);
+    }
+
+    // the text is never shortened to fit, so a line left over the limit is for its author to rewrite
+    // it does not fail the check, as formatting the file would not fix it
+    for (const { line, length } of style ? [] : findLongLines(formatted, maxLineLength)) {
+      const suffix = isModified ? ' (after formatting)' : '';
+      console.warn(`⚠ Line too long: ${filePath}:${line}: ${length} characters, limit ${maxLineLength}${suffix}`);
     }
     return isModified;
   }

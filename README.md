@@ -45,13 +45,13 @@ neatmd --check .
 
 ## 🛠️ Options & Flags
 
-Flag         | Short | Description                                                                        | Default
--------------|-------|------------------------------------------------------------------------------------|--------
-`--check`    | `-c`  | Verify formatting and exit with code 1 if unformatted                              | `false`
-`--comments` |       | Also break long comments in source files, see [docs/comments.md](docs/comments.md) | `false`
-`--output`   | `-o`  | Write the result to a file instead of in place, single file mode only              | none
-`--version`  | `-V`  | Print current version                                                              | none
-`--help`     | `-h`  | Display help menu                                                                  | none
+Flag         | Short | Description                                                                         | Default
+-------------|-------|-------------------------------------------------------------------------------------|--------
+`--check`    | `-c`  | Show what would change, exit with code 1 if any, see [docs/check.md](docs/check.md) | `false`
+`--comments` |       | Also break long comments in source files, see [docs/comments.md](docs/comments.md)  | `false`
+`--output`   | `-o`  | Write the result to a file instead of in place, single file mode only               | none
+`--version`  | `-V`  | Print current version                                                               | none
+`--help`     | `-h`  | Display help menu                                                                   | none
 
 ## 🤖 CI Workflow Example
 
