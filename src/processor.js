@@ -78,6 +78,22 @@ function reportDiff(filePath, content, formatted) {
   }
 }
 
+// a source file only has its long comments broken, whatever else it holds is left as written
+function formatSource(filePath, content, maxLineLength, style) {
+  const result = splitComments(content, maxLineLength, style);
+  result.stuck.forEach(item => console.warn(`⚠ No safe break: ${filePath}:${item.line}: ${item.text}`));
+  return result.content;
+}
+
+// the text is never shortened to fit, so a line left over the limit is for its author to rewrite
+// it does not fail the check, as formatting the file would not fix it
+function warnLongLines(filePath, formatted, maxLineLength, isModified) {
+  for (const { line, length } of findLongLines(formatted, maxLineLength)) {
+    const suffix = isModified ? ' (after formatting)' : '';
+    console.warn(`⚠ Line too long: ${filePath}:${line}: ${length} characters, limit ${maxLineLength}${suffix}`);
+  }
+}
+
 export function processFile(filePath, options = {}) {
   const content = fs.readFileSync(filePath, 'utf-8');
 
@@ -86,16 +102,10 @@ export function processFile(filePath, options = {}) {
     ?? loadConfig(findConfigFiles(path.dirname(path.resolve(filePath))), filePath).maxLineLength;
 
   const style = commentStyleOf(filePath);
-  let formatted;
-  if (style) {
-    // a source file only has its long comments broken, whatever else it holds is left as written
-    const result = splitComments(content, maxLineLength, style);
-    result.stuck.forEach(item => console.warn(`⚠ No safe break: ${filePath}:${item.line}: ${item.text}`));
-    formatted = result.content;
-  } else {
-    if (options.maxLineLength === undefined) warnLengthMismatch(filePath, maxLineLength);
-    formatted = formatMarkdown(content, { ...options, maxLineLength });
-  }
+  if (!style && options.maxLineLength === undefined) warnLengthMismatch(filePath, maxLineLength);
+  const formatted = style
+    ? formatSource(filePath, content, maxLineLength, style)
+    : formatMarkdown(content, { ...options, maxLineLength });
   const isModified = content !== formatted;
 
   if (options.check) {
@@ -103,13 +113,7 @@ export function processFile(filePath, options = {}) {
       console.log(`✖ Needs formatting: ${filePath}`);
       reportDiff(filePath, content, formatted);
     }
-
-    // the text is never shortened to fit, so a line left over the limit is for its author to rewrite
-    // it does not fail the check, as formatting the file would not fix it
-    for (const { line, length } of style ? [] : findLongLines(formatted, maxLineLength)) {
-      const suffix = isModified ? ' (after formatting)' : '';
-      console.warn(`⚠ Line too long: ${filePath}:${line}: ${length} characters, limit ${maxLineLength}${suffix}`);
-    }
+    if (!style) warnLongLines(filePath, formatted, maxLineLength, isModified);
     return isModified;
   }
 
@@ -123,6 +127,18 @@ export function processFile(filePath, options = {}) {
   return isModified;
 }
 
+function isSkipped(dirPath, name, options) {
+  if (!options.comments) return DEFAULT_IGNORED_DIRS.has(name);
+
+  // a run over source files has to reach bin of a Node package, while a Markdown run keeps skipping it
+  if (DEFAULT_IGNORED_DIRS.has(name) && !['bin', 'obj'].includes(name)) return true;
+  return isBuildOutput(dirPath, name) || isVendored(dirPath, name);
+}
+
+function isFormatted(name, options) {
+  return name.endsWith('.md') || Boolean(options.comments && commentStyleOf(name));
+}
+
 export function processDirectory(dirPath, options = {}) {
   const entries = fs.readdirSync(dirPath);
   const ignored = gitIgnoredEntries(dirPath, entries);
@@ -130,23 +146,14 @@ export function processDirectory(dirPath, options = {}) {
   let modifiedCount = 0;
 
   for (const file of files) {
-    if (options.comments) {
-      // a run over source files has to reach bin of a Node package, while a Markdown run keeps skipping it
-      if (DEFAULT_IGNORED_DIRS.has(file) && !['bin', 'obj'].includes(file)) continue;
-      if (isBuildOutput(dirPath, file) || isVendored(dirPath, file)) continue;
-    } else if (DEFAULT_IGNORED_DIRS.has(file)) {
-      continue;
-    }
+    if (isSkipped(dirPath, file, options)) continue;
 
     const fullPath = path.join(dirPath, file);
-    const stat = fs.statSync(fullPath);
 
-    if (stat.isDirectory()) {
+    if (fs.statSync(fullPath).isDirectory()) {
       modifiedCount += processDirectory(fullPath, options);
-    } else if (file.endsWith('.md') || (options.comments && commentStyleOf(file))) {
-      if (processFile(fullPath, options)) {
-        modifiedCount++;
-      }
+    } else if (isFormatted(file, options) && processFile(fullPath, options)) {
+      modifiedCount++;
     }
   }
 
